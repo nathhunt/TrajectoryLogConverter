@@ -129,7 +129,7 @@ namespace HalcyonTrajectoryLogTool
             return failures == 0 ? 0 : 1;
         }
 
-        static List<string> RunToV4(string input, bool folderInput, Options opt)
+        public static List<string> RunToV4(string input, bool folderInput, Options opt)
         {
             string name = Path.GetFileName(input);
             string output;
@@ -170,7 +170,7 @@ namespace HalcyonTrajectoryLogTool
             return notes.Select((n, i) => i == 0 ? n : "     " + n).ToList();
         }
 
-        static List<string> RunToCsv(string input, Options opt)
+        public static List<string> RunToCsv(string input, Options opt)
         {
             string outDir = opt.Output ?? Path.GetDirectoryName(Path.GetFullPath(input));
             Directory.CreateDirectory(outDir);
