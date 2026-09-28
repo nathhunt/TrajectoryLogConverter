@@ -201,11 +201,12 @@ namespace HalcyonTrajectoryLogTool.Gui
             var anchorTLR = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
             // ---- Input ----
-            var grpIn = new GroupBox { Text = "Input", Location = new Point(m, m), Size = new Size(w, 170), Anchor = anchorTLR };
+            var grpIn = new GroupBox { Text = "Input", Location = new Point(m, m), Size = new Size(w, 145), Anchor = anchorTLR };
             rbFile = new RadioButton { Text = "Single log file", Location = new Point(12, 22), AutoSize = true };
             rbFolder = new RadioButton { Text = "Folder of log files", Location = new Point(150, 22), AutoSize = true, Checked = true };
-            rbFile.CheckedChanged += (s, e) => UpdateEnabled();
-            rbFolder.CheckedChanged += (s, e) => UpdateEnabled();
+            // Switching between file and folder clears the path: a file path is not a valid folder and
+            // vice versa. rbFolder's event fires on every switch (checked and unchecked), so one handler does.
+            rbFolder.CheckedChanged += (s, e) => { txtInput.Clear(); UpdateEnabled(); };
 
             txtInput = new TextBox { Location = new Point(12, 50), Size = new Size(w - 120, 23), Anchor = anchorTLR };
             btnBrowseInput = new Button { Text = "Browse...", Location = new Point(w - 100, 49), Size = new Size(88, 25), Anchor = AnchorStyles.Top | AnchorStyles.Right };
@@ -215,15 +216,10 @@ namespace HalcyonTrajectoryLogTool.Gui
 
             chkDateRange = new CheckBox { Text = "Only logs treated from", Location = new Point(12, 110), AutoSize = true };
             chkDateRange.CheckedChanged += (s, e) => UpdateEnabled();
-            dtFrom = new DateTimePicker { Location = new Point(175, 107), Width = 130, Format = DateTimePickerFormat.Short, Value = DateTime.Today.AddDays(-7) };
+            dtFrom = new DateTimePicker { Location = new Point(175, 107), Width = 130, Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy", Value = DateTime.Today.AddDays(-7) };
             var lblTo = new Label { Text = "to", Location = new Point(313, 111), AutoSize = true };
-            dtTo = new DateTimePicker { Location = new Point(335, 107), Width = 130, Format = DateTimePickerFormat.Short, Value = DateTime.Today };
-            var lblDateNote = new Label
-            {
-                Text = "Date = the _yyyyMMddHHmmss time stamp in the file name, or the file's modified date if the name has none. Both dates inclusive.",
-                Location = new Point(12, 138), Size = new Size(w - 24, 20), Anchor = anchorTLR, ForeColor = SystemColors.GrayText
-            };
-            grpIn.Controls.AddRange(new Control[] { rbFile, rbFolder, txtInput, btnBrowseInput, chkSubfolders, chkDateRange, dtFrom, lblTo, dtTo, lblDateNote });
+            dtTo = new DateTimePicker { Location = new Point(335, 107), Width = 130, Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy", Value = DateTime.Today };
+            grpIn.Controls.AddRange(new Control[] { rbFile, rbFolder, txtInput, btnBrowseInput, chkSubfolders, chkDateRange, dtFrom, lblTo, dtTo });
 
             // ---- Output ----
             var grpOut = new GroupBox { Text = "Output", Location = new Point(m, grpIn.Bottom + 8), Size = new Size(w, 190), Anchor = anchorTLR };
@@ -233,7 +229,7 @@ namespace HalcyonTrajectoryLogTool.Gui
             btnBrowseOutput.Click += BrowseOutput_Click;
 
             chkV4 = new CheckBox { Text = "Convert v5.1 to v4.0 (.bin, same file name)", Location = new Point(12, 78), AutoSize = true, Checked = true };
-            chkCsv = new CheckBox { Text = "Export CSV (<name>.csv + <name>_header.csv)", Location = new Point(380, 78), AutoSize = true };
+            chkCsv = new CheckBox { Text = "Export CSV (<name>.csv)", Location = new Point(380, 78), AutoSize = true };
             chkV4.CheckedChanged += (s, e) => UpdateEnabled();
             chkCsv.CheckedChanged += (s, e) => UpdateEnabled();
 
@@ -289,7 +285,12 @@ namespace HalcyonTrajectoryLogTool.Gui
                 }
                 else if (!a.StartsWith("-") && txtInput.Text.Length == 0) txtInput.Text = args[i];
             }
-            if (File.Exists(txtInput.Text)) rbFile.Checked = true;
+            if (File.Exists(txtInput.Text))
+            {
+                string path = txtInput.Text;
+                rbFile.Checked = true;   // clears the path (see BuildLayout), so put it back
+                txtInput.Text = path;
+            }
         }
 
         void UpdateEnabled()
@@ -418,7 +419,7 @@ namespace HalcyonTrajectoryLogTool.Gui
             txtLog.Clear();
             AppendLog(Describe(s, files.Count));
             foreach (LogFile f in files)
-                AppendLog(string.Format(CultureInfo.InvariantCulture, "  {0:yyyy-MM-dd HH:mm:ss}{1}  {2}",
+                AppendLog(string.Format(CultureInfo.InvariantCulture, "  {0:dd/MM/yyyy HH:mm:ss}{1}  {2}",
                                         f.Date, f.DateFromName ? "  " : " *", Path.Combine(f.RelativeDir, Path.GetFileName(f.FullPath))));
             if (files.Any(f => !f.DateFromName))
                 AppendLog("  * no time stamp in the file name; file modified date used");
@@ -431,7 +432,7 @@ namespace HalcyonTrajectoryLogTool.Gui
             sb.Append(count).Append(" log file(s) in ").Append(s.Input);
             if (s.FolderMode && s.IncludeSubfolders) sb.Append(" (including subfolders)");
             if (s.UseDateRange)
-                sb.Append(string.Format(CultureInfo.InvariantCulture, ", treated {0:yyyy-MM-dd} to {1:yyyy-MM-dd}", s.From, s.To));
+                sb.Append(string.Format(CultureInfo.InvariantCulture, ", treated {0:dd/MM/yyyy} to {1:dd/MM/yyyy}", s.From, s.To));
             return sb.ToString();
         }
 
@@ -474,7 +475,7 @@ namespace HalcyonTrajectoryLogTool.Gui
 
             List<LogFile> files = LogFinder.Find(s);
             r.Files = files.Count;
-            report(0, string.Format(CultureInfo.InvariantCulture, "{0:yyyy-MM-dd HH:mm:ss}  {1}", DateTime.Now, Describe(s, files.Count)));
+            report(0, string.Format(CultureInfo.InvariantCulture, "{0:dd/MM/yyyy HH:mm:ss}  {1}", DateTime.Now, Describe(s, files.Count)));
             report(0, "Export folder: " + s.Output);
             if (files.Count == 0) { report(100, "Nothing to do."); return; }
 
