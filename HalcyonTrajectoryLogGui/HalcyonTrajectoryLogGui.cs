@@ -204,8 +204,9 @@ namespace HalcyonTrajectoryLogTool.Gui
             var grpIn = new GroupBox { Text = "Input", Location = new Point(m, m), Size = new Size(w, 145), Anchor = anchorTLR };
             rbFile = new RadioButton { Text = "Single log file", Location = new Point(12, 22), AutoSize = true };
             rbFolder = new RadioButton { Text = "Folder of log files", Location = new Point(150, 22), AutoSize = true, Checked = true };
-            rbFile.CheckedChanged += (s, e) => UpdateEnabled();
-            rbFolder.CheckedChanged += (s, e) => UpdateEnabled();
+            // Switching between file and folder clears the path: a file path is not a valid folder and
+            // vice versa. rbFolder's event fires on every switch (checked and unchecked), so one handler does.
+            rbFolder.CheckedChanged += (s, e) => { txtInput.Clear(); UpdateEnabled(); };
 
             txtInput = new TextBox { Location = new Point(12, 50), Size = new Size(w - 120, 23), Anchor = anchorTLR };
             btnBrowseInput = new Button { Text = "Browse...", Location = new Point(w - 100, 49), Size = new Size(88, 25), Anchor = AnchorStyles.Top | AnchorStyles.Right };
@@ -284,7 +285,12 @@ namespace HalcyonTrajectoryLogTool.Gui
                 }
                 else if (!a.StartsWith("-") && txtInput.Text.Length == 0) txtInput.Text = args[i];
             }
-            if (File.Exists(txtInput.Text)) rbFile.Checked = true;
+            if (File.Exists(txtInput.Text))
+            {
+                string path = txtInput.Text;
+                rbFile.Checked = true;   // clears the path (see BuildLayout), so put it back
+                txtInput.Text = path;
+            }
         }
 
         void UpdateEnabled()
