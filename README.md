@@ -38,10 +38,11 @@ Both projects compile the shared `HalcyonTrajectoryLogTool.cs` as a linked file,
 converter applies to both. The Eclipse launcher is listed under *Solution Items* for editing. It
 is not built, because Eclipse compiles single-file scripts itself.
 
-Each build also copies the two files to be deployed into one folder at the repository root:
+A Release build also copies the two files to be deployed into one folder at the repository root
+(Debug builds are not copied):
 
 ```
-Deploy\Release\            (or Deploy\Debug\)
+Deploy\
     HalcyonTrajectoryLogGui.exe
     LaunchHalcyonTrajectoryLogTool.cs
 ```
