@@ -38,6 +38,20 @@ Both projects compile the shared `HalcyonTrajectoryLogTool.cs` as a linked file,
 converter applies to both. The Eclipse launcher is listed under *Solution Items* for editing. It
 is not built, because Eclipse compiles single-file scripts itself.
 
+Each build also copies the two files to be deployed into one folder at the repository root:
+
+```
+Deploy\Release\            (or Deploy\Debug\)
+    HalcyonTrajectoryLogGui.exe
+    LaunchHalcyonTrajectoryLogTool.cs
+```
+
+To build straight into a network share instead, set `DeployDir`, e.g. from a Developer Command Prompt:
+
+```
+msbuild TrajectoryLogConverter.sln /p:Configuration=Release /p:Platform=x64 /p:DeployDir=\\server\ESAPI\TrajectoryLog\
+```
+
 Copy the `.exe` to a folder the Eclipse workstations can read, such as a local folder or a network share.
 
 ## Eclipse launcher
