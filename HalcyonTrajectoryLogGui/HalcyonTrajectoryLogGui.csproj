@@ -46,4 +46,21 @@
     <Compile Include="HalcyonTrajectoryLogGui.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- After a Release build, collect what gets deployed into one folder:
+       Deploy\HalcyonTrajectoryLogGui.exe + LaunchHalcyonTrajectoryLogTool.cs. Debug builds are not copied.
+       Override the folder with /p:DeployDir=<path>, e.g. msbuild /p:DeployDir=\\server\ESAPI\TrajectoryLog\ -->
+  <PropertyGroup>
+    <DeployDir Condition=" '$(DeployDir)' == '' ">$(MSBuildProjectDirectory)\..\Deploy\</DeployDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <DeployFile Include="$(MSBuildProjectDirectory)\..\EclipseLauncher\LaunchHalcyonTrajectoryLogTool.cs" />
+  </ItemGroup>
+  <Target Name="CopyToDeployFolder" AfterTargets="Build" Condition=" '$(Configuration)' == 'Release' ">
+    <ItemGroup>
+      <DeployFile Include="$(TargetPath)" />
+      <DeployFile Include="$(TargetPath).config" Condition="Exists('$(TargetPath).config')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DeployFile)" DestinationFolder="$(DeployDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Deploy folder: $(DeployDir)" />
+  </Target>
 </Project>
