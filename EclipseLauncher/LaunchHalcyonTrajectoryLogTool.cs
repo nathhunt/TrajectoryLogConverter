@@ -24,7 +24,7 @@ namespace VMS.TPS
     {
         // ---- Edit these for your clinic ------------------------------------------------------
         // Full path of the converter executable.
-        const string ExePath = @"C:\ESAPI\HalcyonTrajectoryLogGui\HalcyonTrajectoryLogGui.exe";
+        const string ExePath = @"HalcyonTrajectoryLogGui.exe";
         // Folder the converter opens with as input (e.g. where logs are copied from the machine).
         // Leave empty to start with a blank input.
         const string DefaultInputFolder = @"";
