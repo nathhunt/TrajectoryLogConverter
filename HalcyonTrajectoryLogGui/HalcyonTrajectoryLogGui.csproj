@@ -1,64 +1,43 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- SDK-style .NET Framework 4.8 project: builds in Visual Studio 2019+ and in VS Code / dotnet CLI. -->
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
-    <ProjectGuid>{6F2B8C1E-3D4A-4B7E-9A51-2C8E7D0F4A13}</ProjectGuid>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>HalcyonTrajectoryLogTool</RootNamespace>
-    <AssemblyName>HalcyonTrajectoryLogGui</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
     <LangVersion>7.3</LangVersion>
-    <FileAlignment>512</FileAlignment>
+    <RootNamespace>HalcyonTrajectoryLogTool</RootNamespace>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <Deterministic>true</Deterministic>
+    <AssemblyName>HalcyonTrajectoryLogGui</AssemblyName>
+    <!-- HalcyonTrajectoryLogTool.cs has its own command-line Main; start the GUI instead. -->
     <StartupObject>HalcyonTrajectoryLogTool.Gui.GuiProgram</StartupObject>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
-    <PlatformTarget>x64</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\x64\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
-    <PlatformTarget>x64</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\x64\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
+    <!-- HalcyonTrajectoryLogGui.cs in this folder is included automatically. -->
+    <Compile Include="..\HalcyonTrajectoryLogTool.cs" Link="HalcyonTrajectoryLogTool.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\HalcyonTrajectoryLogTool.cs">
-      <Link>HalcyonTrajectoryLogTool.cs</Link>
-    </Compile>
-    <Compile Include="HalcyonTrajectoryLogGui.cs" />
+    <!-- .NET Framework 4.8 reference assemblies from NuGet, so the build works in VS Code / dotnet CLI
+         without installing the .NET Framework 4.8 Developer Pack. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+
   <!-- After a Release build, collect what gets deployed into one folder:
        Deploy\HalcyonTrajectoryLogGui.exe + LaunchHalcyonTrajectoryLogTool.cs. Debug builds are not copied.
-       Override the folder with /p:DeployDir=<path>, e.g. msbuild /p:DeployDir=\\server\ESAPI\TrajectoryLog\ -->
+       Override the folder with -p:DeployDir=<path>, e.g. dotnet build -c Release -p:DeployDir=\\server\ESAPI\TrajectoryLog\ -->
   <PropertyGroup>
     <DeployDir Condition=" '$(DeployDir)' == '' ">$(MSBuildProjectDirectory)\..\Deploy\</DeployDir>
   </PropertyGroup>
-  <ItemGroup>
-    <DeployFile Include="$(MSBuildProjectDirectory)\..\EclipseLauncher\LaunchHalcyonTrajectoryLogTool.cs" />
-  </ItemGroup>
   <Target Name="CopyToDeployFolder" AfterTargets="Build" Condition=" '$(Configuration)' == 'Release' ">
     <ItemGroup>
       <DeployFile Include="$(TargetPath)" />
       <DeployFile Include="$(TargetPath).config" Condition="Exists('$(TargetPath).config')" />
+      <DeployFile Include="$(MSBuildProjectDirectory)\..\EclipseLauncher\LaunchHalcyonTrajectoryLogTool.cs" />
     </ItemGroup>
     <Copy SourceFiles="@(DeployFile)" DestinationFolder="$(DeployDir)" SkipUnchangedFiles="true" />
     <Message Importance="high" Text="Deploy folder: $(DeployDir)" />

@@ -2,9 +2,9 @@
 
 | File | What it is |
 |---|---|
-| `TrajectoryLogConverter.sln` | Visual Studio solution for the GUI and the command-line tool. |
+| `TrajectoryLogConverter.sln` | Solution for the GUI and the command-line tool (Visual Studio or VS Code). |
 | `HalcyonTrajectoryLogTool.cs` | Conversion engine + command-line tool (`to-v4`, `to-csv`). |
-| `HalcyonTrajectoryLogTool/` | Visual Studio project for the command-line tool. |
+| `HalcyonTrajectoryLogTool/` | Project for the command-line tool. |
 | `HalcyonTrajectoryLogGui/` | Stand-alone Windows GUI (x64, .NET Framework 4.8) built on the engine. |
 | `EclipseLauncher/LaunchHalcyonTrajectoryLogTool.cs` | Single-file ESAPI plug-in script that starts the GUI from Eclipse. |
 
@@ -23,16 +23,30 @@
 The GUI does not open an ESAPI session. It only reads and writes log files, so it needs no
 Eclipse login, license or script approval.
 
-### Build (Visual Studio)
+### Build
 
-Open `TrajectoryLogConverter.sln` in Visual Studio 2017 or later, with the **.NET desktop development**
-workload and the .NET Framework 4.8 targeting pack installed. Select **Release | x64** and use
-**Build > Build Solution**. The solution contains:
+Both projects are SDK-style .NET Framework 4.8 (x64) projects, so the same
+`TrajectoryLogConverter.sln` builds in Visual Studio and VS Code. The .NET Framework 4.8 reference
+assemblies come from NuGet (`Microsoft.NETFramework.ReferenceAssemblies`), so the 4.8 Developer
+Pack is not required. The first build needs access to nuget.org.
 
-| Project | Output |
+**Visual Studio 2019 or later:** open `TrajectoryLogConverter.sln`, select **Release | x64**, then
+use **Build > Build Solution**. This needs the **.NET desktop development** workload.
+
+**VS Code:** install the [.NET SDK](https://dotnet.microsoft.com/download) (6.0 or later) and the
+**C# Dev Kit** extension. Open the repository folder, then either build from the Solution Explorer
+or run this in the terminal:
+
+```
+dotnet build TrajectoryLogConverter.sln -c Release
+```
+
+The solution contains:
+
+| Project | What it builds |
 |---|---|
-| `HalcyonTrajectoryLogGui` (startup project) | `HalcyonTrajectoryLogGui\bin\x64\Release\HalcyonTrajectoryLogGui.exe` |
-| `HalcyonTrajectoryLogTool` (command line) | `HalcyonTrajectoryLogTool\bin\x64\Release\HalcyonTrajectoryLogTool.exe` |
+| `HalcyonTrajectoryLogGui` (startup project) | `HalcyonTrajectoryLogGui.exe`, the GUI |
+| `HalcyonTrajectoryLogTool` | `HalcyonTrajectoryLogTool.exe`, the command-line tool |
 
 Both projects compile the shared `HalcyonTrajectoryLogTool.cs` as a linked file, so a fix to the
 converter applies to both. The Eclipse launcher is listed under *Solution Items* for editing. It
@@ -44,13 +58,16 @@ A Release build also copies the two files to be deployed into one folder at the 
 ```
 Deploy\
     HalcyonTrajectoryLogGui.exe
+    HalcyonTrajectoryLogGui.exe.config
     LaunchHalcyonTrajectoryLogTool.cs
 ```
 
-To build straight into a network share instead, set `DeployDir`, e.g. from a Developer Command Prompt:
+Deploy the `.exe.config` alongside the `.exe`. It tells Windows the exe needs .NET Framework 4.8.
+
+To build straight into a network share instead, set `DeployDir`:
 
 ```
-msbuild TrajectoryLogConverter.sln /p:Configuration=Release /p:Platform=x64 /p:DeployDir=\\server\ESAPI\TrajectoryLog\
+dotnet build TrajectoryLogConverter.sln -c Release -p:DeployDir=\\server\ESAPI\TrajectoryLog\
 ```
 
 Copy the `.exe` to a folder the Eclipse workstations can read, such as a local folder or a network share.

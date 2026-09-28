@@ -20,7 +20,7 @@
 //   --input <file | folder>   --output <folder>   --mode <v4 | csv | both>
 //
 // No ESAPI session is opened: the tool only reads and writes log files, so it does not need an
-// Eclipse login, license or script approval. Build with TrajectoryLogConverter.sln in Visual Studio.
+// Eclipse login, license or script approval. Build with TrajectoryLogConverter.sln (Visual Studio or VS Code).
 
 using System;
 using System.Collections.Generic;
