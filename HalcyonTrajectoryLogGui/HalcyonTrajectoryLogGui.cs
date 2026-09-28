@@ -20,8 +20,7 @@
 //   --input <file | folder>   --output <folder>   --mode <v4 | csv | both>
 //
 // No ESAPI session is opened: the tool only reads and writes log files, so it does not need an
-// Eclipse login, license or script approval. C# 5 compatible, so it also builds with the
-// csc.exe that ships with .NET Framework 4.x (see build.bat).
+// Eclipse login, license or script approval. Build with TrajectoryLogConverter.sln in Visual Studio.
 
 using System;
 using System.Collections.Generic;

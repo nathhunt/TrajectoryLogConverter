@@ -60,6 +60,7 @@
 //     therefore numbered by position in the file (Leaf001..Leaf114) rather than named.
 //
 // Build / run:
+//   Visual Studio:   TrajectoryLogConverter.sln, project HalcyonTrajectoryLogTool
 //   .NET 10+:        dotnet run HalcyonTrajectoryLogTool.cs -- to-csv <input>
 //   .NET project:    drop this file into a console project
 //   Mono / .NET Fx:  csc HalcyonTrajectoryLogTool.cs (or mcs), then run the .exe

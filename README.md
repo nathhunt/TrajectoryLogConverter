@@ -2,7 +2,9 @@
 
 | File | What it is |
 |---|---|
+| `TrajectoryLogConverter.sln` | Visual Studio solution for the GUI and the command-line tool. |
 | `HalcyonTrajectoryLogTool.cs` | Conversion engine + command-line tool (`to-v4`, `to-csv`). |
+| `HalcyonTrajectoryLogTool/` | Visual Studio project for the command-line tool. |
 | `HalcyonTrajectoryLogGui/` | Stand-alone Windows GUI (x64, .NET Framework 4.8) built on the engine. |
 | `EclipseLauncher/LaunchHalcyonTrajectoryLogTool.cs` | Single-file ESAPI plug-in script that starts the GUI from Eclipse. |
 
@@ -21,12 +23,20 @@
 The GUI does not open an ESAPI session. It only reads and writes log files, so it needs no
 Eclipse login, license or script approval.
 
-### Build
+### Build (Visual Studio)
 
-* Visual Studio 2019+: open `HalcyonTrajectoryLogGui/HalcyonTrajectoryLogGui.csproj` and build
-  in Release. The output is `bin\x64\Release\net48\HalcyonTrajectoryLogGui.exe`.
-* No Visual Studio: run `HalcyonTrajectoryLogGui\build.bat`, which uses the `csc.exe` that ships
-  with .NET Framework 4.x. The output is `HalcyonTrajectoryLogGui\bin\HalcyonTrajectoryLogGui.exe`.
+Open `TrajectoryLogConverter.sln` in Visual Studio 2017 or later, with the **.NET desktop development**
+workload and the .NET Framework 4.8 targeting pack installed. Select **Release | x64** and use
+**Build > Build Solution**. The solution contains:
+
+| Project | Output |
+|---|---|
+| `HalcyonTrajectoryLogGui` (startup project) | `HalcyonTrajectoryLogGui\bin\x64\Release\HalcyonTrajectoryLogGui.exe` |
+| `HalcyonTrajectoryLogTool` (command line) | `HalcyonTrajectoryLogTool\bin\x64\Release\HalcyonTrajectoryLogTool.exe` |
+
+Both projects compile the shared `HalcyonTrajectoryLogTool.cs` as a linked file, so a fix to the
+converter applies to both. The Eclipse launcher is listed under *Solution Items* for editing. It
+is not built, because Eclipse compiles single-file scripts itself.
 
 Copy the `.exe` to a folder the Eclipse workstations can read, such as a local folder or a network share.
 
