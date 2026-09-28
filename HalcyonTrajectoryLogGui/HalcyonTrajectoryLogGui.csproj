@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Stand-alone converter GUI. Open in Visual Studio 2019+ (or `dotnet build -c Release`)
+       and deploy bin\x64\Release\net48\HalcyonTrajectoryLogGui.exe. No NuGet packages or ESAPI
+       references are needed; build.bat is an alternative that needs no Visual Studio. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <LangVersion>7.3</LangVersion>
+    <RootNamespace>HalcyonTrajectoryLogTool.Gui</RootNamespace>
+    <AssemblyName>HalcyonTrajectoryLogGui</AssemblyName>
+    <!-- HalcyonTrajectoryLogTool.cs has its own command-line Main; start the GUI instead. -->
+    <StartupObject>HalcyonTrajectoryLogTool.Gui.GuiProgram</StartupObject>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Product>Halcyon Trajectory Log Converter</Product>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\HalcyonTrajectoryLogTool.cs" Link="HalcyonTrajectoryLogTool.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+</Project>
