@@ -6,7 +6,6 @@
 //           so it can be read by tools that only understand 4.0 (e.g. DoseLab).
 //   to-csv  Export a version 4.0 or 5.1 log to human-readable CSV:
 //             <name>.csv          one row per 20 ms snapshot, expected + actual for every axis
-//             <name>_header.csv   header fields, plan metadata and the subbeam table
 //
 // Based on "Halcyon and Ethos Radiotherapy System Trajectory Log File Specification"
 //   P1069495-001-A (May 2025)  -> version 4.0 layout
@@ -48,8 +47,8 @@
 // CSV notes:
 //   * Values are in the axis scale given in the header: cm for linear axes, degrees for
 //     rotations, MU for dose. Axes that hold the "no value" marker (float max) in every
-//     snapshot - the jaws, which Halcyon does not have - are left out and listed in the
-//     header CSV; any single "no value" sample elsewhere is written as an empty cell.
+//     snapshot - the jaws, which Halcyon does not have - are left out (and listed in the
+//     console output); any single "no value" sample elsewhere is written as an empty cell.
 //   * Control point and time have no separate expected/actual value, so they get one column.
 //   * Time: v5.1 logs record clock time (seconds since midnight); v4.0 logs do not, so the
 //     elapsed time is computed as snapshot index x sampling interval (beam pauses are not
@@ -177,20 +176,22 @@ namespace HalcyonTrajectoryLogTool
             Directory.CreateDirectory(outDir);
             string baseName = Path.GetFileNameWithoutExtension(input);
             string dataPath = Path.Combine(outDir, baseName + ".csv");
-            string headerPath = Path.Combine(outDir, baseName + "_header.csv");
-            if (!opt.Overwrite && (File.Exists(dataPath) || File.Exists(headerPath)))
+            if (!opt.Overwrite && File.Exists(dataPath))
                 throw new IOException("Output exists (use --overwrite): " + dataPath);
 
             var log = TrajectoryLog.Parse(File.ReadAllBytes(input), opt.IgnoreCrc);
-            FileUtil.WriteAtomic(headerPath, Encoding.UTF8.GetBytes(CsvExporter.HeaderCsv(log, input)));
             FileUtil.WriteAtomic(dataPath, Encoding.UTF8.GetBytes(CsvExporter.DataCsv(log, opt)));
 
             var notes = new List<string>
             {
                 "OK   " + Path.GetFileName(input) + " (v" + log.Version + ") -> " + dataPath,
-                "     " + string.Format(CultureInfo.InvariantCulture, "{0} snapshots, {1} axes, {2} subbeam(s); header -> {3}",
-                                        log.NumSnapshots, log.NumAxes, log.Subbeams.Count, headerPath)
+                "     " + string.Format(CultureInfo.InvariantCulture, "{0} snapshots, {1} axes, {2} subbeam(s)",
+                                        log.NumSnapshots, log.NumAxes, log.Subbeams.Count)
             };
+            bool[] hasData = CsvExporter.AxesWithData(log);
+            string empty = string.Join(", ", Enumerable.Range(0, log.NumAxes).Where(i => !hasData[i])
+                                                   .Select(i => TrajectoryLog.AxisName(log.AxisIds[i])));
+            if (empty.Length > 0) notes.Add("     Axes with no data left out: " + empty);
             if (log.CrcWarning != null) notes.Add("     WARNING: " + log.CrcWarning);
             return notes;
         }
@@ -280,7 +281,7 @@ namespace HalcyonTrajectoryLogTool
             Console.WriteLine("      --time-csv            save the removed time axis to <output>_time.csv");
             Console.WriteLine();
             Console.WriteLine("  HalcyonTrajectoryLogTool to-csv <input.bin | folder> [-o <folder>] [options]");
-            Console.WriteLine("      Export v4.0 / v5.1 logs to <name>.csv (data) and <name>_header.csv.");
+            Console.WriteLine("      Export v4.0 / v5.1 logs to <name>.csv.");
             Console.WriteLine("      --no-mlc              leave out MLC columns");
             Console.WriteLine("      --actual-only         write actual values only");
             Console.WriteLine();
@@ -595,64 +596,6 @@ namespace HalcyonTrajectoryLogTool
     {
         const float NoValue = 3.0e38f; // log uses float.MaxValue for axes that don't exist (jaws)
 
-        public static string HeaderCsv(TrajectoryLog log, string sourcePath)
-        {
-            var sb = new StringBuilder();
-            Action<string, string> kv = (k, v) => sb.Append(Csv.Field(k)).Append(',').Append(Csv.Field(v)).Append("\r\n");
-
-            kv("Field", "Value");
-            kv("Source file", Path.GetFileName(sourcePath));
-            kv("Log version", log.Version);
-            kv("Sampling interval (ms)", log.SamplingIntervalMs.ToString(CultureInfo.InvariantCulture));
-            kv("Number of axes", log.NumAxes.ToString(CultureInfo.InvariantCulture));
-            kv("Axes (id:name x samples)", string.Join("; ", Enumerable.Range(0, log.NumAxes)
-                .Select(i => log.AxisIds[i] + ":" + TrajectoryLog.AxisName(log.AxisIds[i]) + " x" + log.SamplesPerAxis[i])));
-            kv("Axis scale", log.AxisScale + " - " + TrajectoryLog.AxisScaleName(log.AxisScale));
-            kv("Number of subbeams", log.NumSubbeamsField.ToString(CultureInfo.InvariantCulture));
-            kv("Truncated", log.Truncated == 1 ? "Yes (1)" : "No (" + log.Truncated + ")");
-            kv("Number of snapshots", log.NumSnapshots.ToString(CultureInfo.InvariantCulture));
-            kv("Duration recorded (s)", Fmt.Fixed(log.NumSnapshots * log.SamplingIntervalMs / 1000.0, 2));
-            kv("MLC model", log.MlcModel + (log.MlcModel == 6 ? " - SX2" : ""));
-            if (log.HasMachineInfo)
-            {
-                kv("Machine specifier", log.MachineSpecifier + (log.MachineSpecifier == 0 ? " - TrueBeam"
-                                        : log.MachineSpecifier == 1 ? " - Halcyon/Ethos" : ""));
-                kv("Machine serial number (last 6)", log.MachineSerial);
-            }
-            if (log.TimeAxisIndex >= 0 && log.NumSnapshots > 0)
-            {
-                kv("First snapshot clock time", Fmt.Clock(log.Expected(0, log.TimeAxisIndex, 0)));
-                kv("Last snapshot clock time", Fmt.Clock(log.Expected(log.NumSnapshots - 1, log.TimeAxisIndex, 0)));
-            }
-            bool[] hasData = AxesWithData(log);
-            string empty = string.Join("; ", Enumerable.Range(0, log.NumAxes).Where(i => !hasData[i])
-                                                   .Select(i => TrajectoryLog.AxisName(log.AxisIds[i])));
-            if (empty.Length > 0) kv("Axes with no data (left out of data CSV)", empty);
-            kv("CRC", log.CrcWarning ?? ("OK (" + log.CrcVariant.Name + ")"));
-
-            // Plan metadata ("Key:\tValue" lines)
-            sb.Append("\r\n");
-            kv("Metadata", "");
-            foreach (string line in log.MetaDataText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                int c = line.IndexOf(':');
-                if (c > 0) kv(line.Substring(0, c).Trim(), line.Substring(c + 1).Trim());
-                else kv(line.Trim(), "");
-            }
-
-            // Subbeams
-            sb.Append("\r\n");
-            sb.Append("Subbeam,Name,StartControlPoint,MU,ExpectedRadTime_s,Seq\r\n");
-            for (int k = 0; k < log.Subbeams.Count; k++)
-            {
-                var s = log.Subbeams[k];
-                sb.Append(k + 1).Append(',').Append(Csv.Field(s.Name)).Append(',')
-                  .Append(s.ControlPoint).Append(',').Append(Fmt.Num(s.MU)).Append(',')
-                  .Append(Fmt.Num(s.RadTime)).Append(',').Append(s.Seq).Append("\r\n");
-            }
-            return sb.ToString();
-        }
-
         public static string DataCsv(TrajectoryLog log, Options opt)
         {
             bool both = !opt.ActualOnly;
@@ -725,7 +668,7 @@ namespace HalcyonTrajectoryLogTool
 
         /// <summary>
         /// False for axes that hold the "no value" marker in every snapshot (e.g. Halcyon jaws);
-        /// those are left out of the data CSV and listed in the header CSV.
+        /// those are left out of the data CSV.
         /// </summary>
         public static bool[] AxesWithData(TrajectoryLog log)
         {
