@@ -3,7 +3,7 @@
 | File | What it is |
 |---|---|
 | `TrajectoryLogConverter.sln` | Solution for the GUI and the command-line tool (Visual Studio or VS Code). |
-| `HalcyonTrajectoryLogTool.cs` | Conversion engine + command-line tool (`to-v4`, `to-csv`). |
+| `HalcyonTrajectoryLogTool.cs` | Conversion engine + command-line tool (`to-v4`, `to-csv`, and for validation `to-v5`, `version`, `compare`). |
 | `HalcyonTrajectoryLogTool/` | Project for the command-line tool. |
 | `HalcyonTrajectoryLogGui/` | Stand-alone Windows GUI (x64, .NET Framework 4.8) built on the engine. |
 | `EclipseLauncher/LaunchHalcyonTrajectoryLogTool.cs` | Single-file ESAPI plug-in script that starts the GUI from Eclipse. |
@@ -71,6 +71,49 @@ dotnet build TrajectoryLogConverter.sln -c Release -p:DeployDir=\\server\ESAPI\T
 ```
 
 Copy the `.exe` to a folder the Eclipse workstations can read, such as a local folder or a network share.
+
+## Validation and testing commands
+
+These are only in the command-line tool (`HalcyonTrajectoryLogTool.exe`), not in the GUI.
+
+```
+HalcyonTrajectoryLogTool to-v5   <input.bin | folder> [-o <file|folder>] [--time-from <csv>] [--start-time hh:mm:ss]
+HalcyonTrajectoryLogTool version <input.bin | folder> [--expect 4.0|5.1]
+HalcyonTrajectoryLogTool compare <a.bin | folderA> <b.bin | folderB> [--ignore-version] [--tolerance x] [--max-diffs n]
+```
+
+* **`to-v5`** converts a v4.0 log to v5.1 (default output: `v5.1` subfolder). It adds the time axis
+  (43) before the MLC. v4.0 logs do not record clock time, so the time axis is either restored
+  from the `_time.csv` that `to-v4 --time-csv` writes, or generated as start time + snapshot x 20 ms.
+  The start time comes from `--start-time`, else from the `_yyyyMMddHHmmss` stamp in the file name.
+  Generated times leave out beam pauses. The machine specifier and serial number bytes are copied
+  as they are, so they are zero unless the v4.0 file came from `to-v4 --keep-machine-info`.
+* **`version`** reads only the first 32 bytes of each file and prints `v4.0` or `v5.1`. With
+  `--expect`, a log of any other version is a failure (exit code 1).
+* **`compare`** compares header fields, subbeams and every expected/actual snapshot value. It
+  prints `SAME` (byte-for-byte or same content) or `DIFF` with a summary per axis and the first
+  differing values. Axes are matched by axis id, so a v4.0 log can be compared with a v5.1 log.
+  `--ignore-version` ignores the differences between 4.0 and 5.1 that are there by design (version
+  string, time axis, machine specifier and serial number). With two folders, files are matched
+  by name. Exit code 0 means everything is the same.
+
+A full round trip gives back the original file byte for byte:
+
+```
+HalcyonTrajectoryLogTool to-v4 log.bin -o v4\ --time-csv --keep-machine-info
+HalcyonTrajectoryLogTool to-v5 v4\log.bin -o rt\ --time-from v4\log_time.csv
+HalcyonTrajectoryLogTool compare log.bin rt\log.bin
+```
+
+To check that a v4.0 conversion kept all the data, compare it with the original using `--ignore-version`:
+
+```
+HalcyonTrajectoryLogTool compare original\ converted\v4.0\ --ignore-version
+```
+
+The `_time.csv` written by `to-v4 --time-csv` now also has `Expected` and `Actual` columns with
+the exact time values, which `to-v5 --time-from` uses. Older `_time.csv` files still work but
+restore the time to the nearest millisecond only.
 
 ## Eclipse launcher
 
