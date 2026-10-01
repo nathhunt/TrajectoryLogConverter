@@ -44,6 +44,7 @@
 //   --start-time <t>        Clock time of the first snapshot (hh:mm:ss[.fff] or seconds since
 //                           midnight). Default: time of the "_yyyyMMddHHmmss" stamp in the file
 //                           name, else 00:00:00.
+//   --serial <text>         Machine serial number to write (last 6 characters of the serial).
 //   --axis-scale <1|2|3>    Header axis-scale value to write (axis values are NOT converted).
 //
 // to-csv options
@@ -66,19 +67,25 @@
 //   1. Version string "5.1" -> "4.0".
 //   2. Time axis (enum 43) removed from the axis enumeration, samples-per-axis arrays, axis
 //      count, and from every snapshot.
-//   3. Machine specifier (1 byte) + serial number (6 bytes), new in 5.1, are zeroed unless
-//      --keep-machine-info.
+//   3. Machine specifier (1 byte) + serial number (6 bytes) are zeroed unless
+//      --keep-machine-info. The 5.1 spec lists them as new in 5.1, although the header table
+//      of the 4.0 spec (P1069495-001-A) also has them.
 //   4. Axis scale copied unchanged (5.1 writes 3, which is also a legal 4.0 value).
 //   Header rebuilt, subbeams copied verbatim, CRC recomputed.
 //
 // What to-v5 changes (the reverse of to-v4; for validation and testing):
 //   1. Version string "4.0" -> "5.1".
-//   2. Time axis (enum 43, 1 sample) added in axis-id order, i.e. before the MLC (50). v4.0 logs
-//      do not record clock time, so it is either restored from a to-v4 "_time.csv" (exact
-//      round trip) or generated as start time + snapshot index x sampling interval, with the
-//      same value written as expected and actual. Generated times leave out beam pauses.
-//   3. Machine specifier + serial number bytes copied as they are (zero in a normal v4.0 log).
-//   4. Axis scale copied unchanged unless --axis-scale.
+//   2. Time axis (enum 43, 1 sample) added in axis-id order, between the control point (42) and
+//      the MLC (50), as listed in the axis enumeration of P1069495-002-B. v4.0 logs do not record
+//      clock time, so it is either restored from a to-v4 "_time.csv" (exact round trip) or
+//      generated as start time + snapshot index x sampling interval. Per the spec the time is
+//      seconds since midnight in the "expected" record and the "actual" record is empty, so
+//      generated times write 0 as the actual value. Generated times leave out beam pauses.
+//   3. Machine specifier + serial number bytes copied as they are. If the specifier is 0
+//      (TrueBeam) and the serial number is empty - i.e. zeroed by to-v4 - the specifier is set to
+//      1 (Halcyon / Ethos). --serial sets the serial number.
+//   4. Axis scale copied unchanged unless --axis-scale (HAL 5.0 writes 3; the axis values are
+//      NOT converted, so a v4.0 log with axis scale 1 or 2 keeps that value and gets a warning).
 //   Header rebuilt, subbeams copied verbatim, CRC recomputed.
 //
 // CSV notes:
@@ -379,6 +386,7 @@ namespace HalcyonTrajectoryLogTool
         // to-v5
         public string TimeFrom;
         public double? StartTime;            // seconds since midnight
+        public string Serial;
         // to-csv
         public bool NoMlc;
         public bool ActualOnly;
@@ -424,6 +432,12 @@ namespace HalcyonTrajectoryLogTool
                     case "--start-time":
                         RequireCmd(o, a, Command.ToV5);
                         o.StartTime = ParseClock(Next(args, ref i, a));
+                        break;
+                    case "--serial":
+                        RequireCmd(o, a, Command.ToV5);
+                        o.Serial = Next(args, ref i, a);
+                        if (o.Serial.Length > 6 || o.Serial.Any(c => c < 32 || c > 126))
+                            throw new ArgumentException("--serial must be up to 6 ASCII characters");
                         break;
                     case "--no-mlc": RequireCmd(o, a, Command.ToCsv); o.NoMlc = true; break;
                     case "--actual-only": RequireCmd(o, a, Command.ToCsv); o.ActualOnly = true; break;
@@ -521,6 +535,7 @@ namespace HalcyonTrajectoryLogTool
             Console.WriteLine("      Convert v4.0 logs to v5.1. Default output: 'v5.1' subfolder, same file name.");
             Console.WriteLine("      --time-from <csv>     restore the time axis from a to-v4 --time-csv file");
             Console.WriteLine("      --start-time <t>      first snapshot clock time, hh:mm:ss[.fff] (default: from file name)");
+            Console.WriteLine("      --serial <text>       machine serial number (last 6 characters)");
             Console.WriteLine("      --axis-scale <1|2|3>  header axis-scale value (axis data NOT converted)");
             Console.WriteLine();
             Console.WriteLine("  HalcyonTrajectoryLogTool version <input.bin | folder> [--expect <4.0|5.1>]");
@@ -904,8 +919,20 @@ namespace HalcyonTrajectoryLogTool
             BinUtil.WriteInt(header, ref q, log.MlcModel);
             if (q + TrajectoryLog.MetaDataBytes + 7 > TrajectoryLog.HeaderSize)
                 throw new InvalidDataException("No room in the 1024-byte header for another axis.");
-            // Metadata + machine specifier / serial number (normally zero in a v4.0 log).
+            // Metadata + machine specifier / serial number.
             Buffer.BlockCopy(src, log.MetaOffset, header, q, TrajectoryLog.MetaDataBytes + 7);
+            int mi = q + TrajectoryLog.MetaDataBytes;
+            if (log.MachineSpecifier == 0 && log.MachineSerial.Length == 0)
+            {
+                header[mi] = 1; // 0 would mean TrueBeam
+                notes.Add("Machine specifier set to 1 (Halcyon / Ethos); the input had none.");
+            }
+            if (opt.Serial != null)
+            {
+                Array.Clear(header, mi + 1, 6);
+                byte[] serial = Encoding.ASCII.GetBytes(opt.Serial);
+                Buffer.BlockCopy(serial, 0, header, mi + 1, serial.Length);
+            }
 
             // Body
             int snapBytes = log.FloatsPerSnapshot * 4;
@@ -945,6 +972,8 @@ namespace HalcyonTrajectoryLogTool
             if (opt.AxisScale.HasValue && opt.AxisScale.Value != log.AxisScale)
                 notes.Add(string.Format("WARNING: axis-scale flag changed {0} -> {1}; axis values were NOT converted.",
                                         log.AxisScale, newAxisScale));
+            else if (newAxisScale != 3)
+                notes.Add("WARNING: axis scale kept at " + newAxisScale + "; HAL 5.0 v5.1 logs use 3 (couch values are not converted).");
             return dst;
         }
 
@@ -973,7 +1002,7 @@ namespace HalcyonTrajectoryLogTool
                         expected[s] = e; actual[s] = a;
                     }
                     else if (f.Length >= 2 && double.TryParse(f[1], NumberStyles.Float, CultureInfo.InvariantCulture, out sec))
-                        expected[s] = actual[s] = (float)sec;
+                        expected[s] = (float)sec; // actual stays 0 ("empty" per the spec)
                     else
                         throw new InvalidDataException("Time CSV row " + (s + 2) + " is not valid: " + lines[s]);
                 }
@@ -988,7 +1017,7 @@ namespace HalcyonTrajectoryLogTool
             else if (FileUtil.TryTimeFromName(sourcePath, out stamp)) { start = stamp.TotalSeconds; from = "file name"; }
             else { start = 0; from = "no time stamp in file name"; }
             for (int s = 0; s < n; s++)
-                expected[s] = actual[s] = (float)((start + s * log.SamplingIntervalMs / 1000.0) % 86400);
+                expected[s] = (float)((start + s * log.SamplingIntervalMs / 1000.0) % 86400); // actual stays 0
             notes.Add("Time axis generated: " + Fmt.Clock(start) + " (" + from + ") + snapshot x " + log.SamplingIntervalMs +
                       " ms. v4.0 does not record beam pauses, so clock times are approximate.");
         }

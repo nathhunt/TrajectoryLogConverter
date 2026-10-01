@@ -83,11 +83,16 @@ HalcyonTrajectoryLogTool compare <a.bin | folderA> <b.bin | folderB> [--ignore-v
 ```
 
 * **`to-v5`** converts a v4.0 log to v5.1 (default output: `v5.1` subfolder). It adds the time axis
-  (43) before the MLC. v4.0 logs do not record clock time, so the time axis is either restored
-  from the `_time.csv` that `to-v4 --time-csv` writes, or generated as start time + snapshot x 20 ms.
-  The start time comes from `--start-time`, else from the `_yyyyMMddHHmmss` stamp in the file name.
-  Generated times leave out beam pauses. The machine specifier and serial number bytes are copied
-  as they are, so they are zero unless the v4.0 file came from `to-v4 --keep-machine-info`.
+  (43) between the control point (42) and the MLC (50), as in the v5.1 axis enumeration
+  (P1069495-002-B, *Header*). Per the spec, the time is seconds since midnight in the "expected"
+  record and the "actual" record is empty (written as 0). v4.0 logs do not record clock time, so
+  the time axis is either restored from the `_time.csv` that `to-v4 --time-csv` writes, or
+  generated as start time + snapshot x 20 ms. The start time comes from `--start-time`, else from
+  the `_yyyyMMddHHmmss` stamp in the file name. Generated times leave out beam pauses.
+  The machine specifier and serial number are copied; if they were zeroed by `to-v4`, the
+  specifier is set to 1 (Halcyon / Ethos, since 0 means TrueBeam) and `--serial` can supply the
+  serial number. The axis scale is copied; HAL 5.0 writes 3, so a different value gets a warning
+  (couch values are not converted).
 * **`version`** reads only the first 32 bytes of each file and prints `v4.0` or `v5.1`. With
   `--expect`, a log of any other version is a failure (exit code 1).
 * **`compare`** compares header fields, subbeams and every expected/actual snapshot value. It
