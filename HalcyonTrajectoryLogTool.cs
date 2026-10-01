@@ -56,7 +56,8 @@
 //
 // compare options
 //   --ignore-version        Ignore what differs between 4.0 and 5.1 by design: the version string,
-//                           the time axis (43) and the machine specifier / serial number.
+//                           the time axis (43), the axis order and the machine specifier / serial
+//                           number.
 //   --tolerance <x>         Treat values within x of each other as equal. Default 0 (exact).
 //   --max-diffs <n>         Number of individual value differences to list. Default 10.
 //
@@ -75,8 +76,9 @@
 //
 // What to-v5 changes (the reverse of to-v4; for validation and testing):
 //   1. Version string "4.0" -> "5.1".
-//   2. Time axis (enum 43, 1 sample) added in axis-id order, between the control point (42) and
-//      the MLC (50), as listed in the axis enumeration of P1069495-002-B. v4.0 logs do not record
+//   2. Time axis (enum 43, 1 sample) added, and the axes put in the order HAL 5.0 writes them:
+//      Time, ControlPoint, MU, BeamHold, Gantry, Coll, Y1, Y2, X1, X2, couch (6 - 11), MLC.
+//      The spec does not give the order; it is taken from machine logs. v4.0 logs do not record
 //      clock time, so it is either restored from a to-v4 "_time.csv" (exact round trip) or
 //      generated as start time + snapshot index x sampling interval. Per the spec the time is
 //      seconds since midnight in the "expected" record and the "actual" record is empty, so
@@ -543,7 +545,7 @@ namespace HalcyonTrajectoryLogTool
             Console.WriteLine();
             Console.WriteLine("  HalcyonTrajectoryLogTool compare <a.bin | folderA> <b.bin | folderB> [options]");
             Console.WriteLine("      Compare header, subbeams and snapshots. Folders are matched by file name.");
-            Console.WriteLine("      --ignore-version      ignore version string, time axis and machine info");
+            Console.WriteLine("      --ignore-version      ignore version string, time axis, axis order and machine info");
             Console.WriteLine("      --tolerance <x>       values within x count as equal (default 0 = exact)");
             Console.WriteLine("      --max-diffs <n>       individual value differences to list (default 10)");
             Console.WriteLine();
@@ -881,6 +883,12 @@ namespace HalcyonTrajectoryLogTool
     // =============================================================================================
     public static class V5Converter
     {
+        /// <summary>
+        /// Axis order of HAL 5.0 (v5.1) logs, after the time axis, as found in machine logs; the spec
+        /// does not state it. v4.0 logs use 0 - 11, 40, 41, 42, 50.
+        /// </summary>
+        public static readonly int[] V51AxisOrder = { 42, 40, 41, 1, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 50 };
+
         /// <param name="sourcePath">Input file; its "_yyyyMMddHHmmss" stamp gives the default start time.</param>
         public static byte[] Convert(TrajectoryLog log, Options opt, string sourcePath, List<string> notes)
         {
@@ -893,13 +901,19 @@ namespace HalcyonTrajectoryLogTool
             float[] expTime, actTime;
             TimeValues(log, opt, sourcePath, notes, out expTime, out actTime);
 
-            // Time axis goes in axis-id order: after the control point (42), before the MLC (50).
-            int ins = 0;
-            while (ins < log.NumAxes && log.AxisIds[ins] < TrajectoryLog.TimeAxisId) ins++;
-            var axisIds = log.AxisIds.ToList();
-            var samples = log.SamplesPerAxis.ToList();
-            axisIds.Insert(ins, TrajectoryLog.TimeAxisId);
-            samples.Insert(ins, 1);
+            // Axes in the order HAL 5.0 writes them; any other axes follow in their input order.
+            // srcAxis[j] = input axis index of output axis j, or -1 for the new time axis.
+            var srcAxis = new List<int> { -1 };
+            foreach (int id in V51AxisOrder)
+            {
+                int i = Array.IndexOf(log.AxisIds, id);
+                if (i >= 0) srcAxis.Add(i);
+            }
+            for (int i = 0; i < log.NumAxes; i++)
+                if (!srcAxis.Contains(i)) srcAxis.Add(i);
+            var axisIds = srcAxis.Select(i => i < 0 ? TrajectoryLog.TimeAxisId : log.AxisIds[i]).ToList();
+            var samples = srcAxis.Select(i => i < 0 ? 1 : log.SamplesPerAxis[i]).ToList();
+            bool reordered = !srcAxis.Skip(1).SequenceEqual(Enumerable.Range(0, log.NumAxes));
             int newAxisScale = opt.AxisScale ?? log.AxisScale;
 
             // Header
@@ -946,19 +960,23 @@ namespace HalcyonTrajectoryLogTool
             Buffer.BlockCopy(src, TrajectoryLog.HeaderSize, dst, TrajectoryLog.HeaderSize,
                              log.NumSubbeamsField * TrajectoryLog.SubbeamBytes);
 
-            int before = ins < log.NumAxes ? log.AxisFloatOffset[ins] * 4 : snapBytes;
-            int after = snapBytes - before;
             int dstPos = log.DataOffset;
             for (int s = 0; s < log.NumSnapshots; s++)
             {
                 int sp = log.DataOffset + s * snapBytes;
-                Buffer.BlockCopy(src, sp, dst, dstPos, before);
-                dstPos += before;
-                BinUtil.WriteFloat(dst, dstPos, expTime[s]);
-                BinUtil.WriteFloat(dst, dstPos + 4, actTime[s]);
-                dstPos += timeBytes;
-                Buffer.BlockCopy(src, sp + before, dst, dstPos, after);
-                dstPos += after;
+                foreach (int i in srcAxis)
+                {
+                    if (i < 0)
+                    {
+                        BinUtil.WriteFloat(dst, dstPos, expTime[s]);
+                        BinUtil.WriteFloat(dst, dstPos + 4, actTime[s]);
+                        dstPos += timeBytes;
+                        continue;
+                    }
+                    int bytes = log.SamplesPerAxis[i] * 2 * 4;
+                    Buffer.BlockCopy(src, sp + log.AxisFloatOffset[i] * 4, dst, dstPos, bytes);
+                    dstPos += bytes;
+                }
             }
 
             int crcPos = dst.Length - TrajectoryLog.CrcBytes;
@@ -969,6 +987,8 @@ namespace HalcyonTrajectoryLogTool
             notes.Add(string.Format(CultureInfo.InvariantCulture,
                 "{0} axes -> {1}, {2} subbeam(s), {3} snapshots, {4:N0} -> {5:N0} bytes",
                 log.NumAxes, axisIds.Count, log.NumSubbeamsField, log.NumSnapshots, src.Length, dst.Length));
+            if (reordered)
+                notes.Add("Axes reordered to the v5.1 order: " + string.Join(", ", axisIds.Select(TrajectoryLog.AxisName)) + ".");
             if (opt.AxisScale.HasValue && opt.AxisScale.Value != log.AxisScale)
                 notes.Add(string.Format("WARNING: axis-scale flag changed {0} -> {1}; axis values were NOT converted.",
                                         log.AxisScale, newAxisScale));
@@ -1074,7 +1094,13 @@ namespace HalcyonTrajectoryLogTool
 
             Func<TrajectoryLog, int[]> axes = l => l.AxisIds.Where(id => !(ignoreVersion && id == TrajectoryLog.TimeAxisId)).ToArray();
             int[] axesA = axes(a), axesB = axes(b);
-            if (!axesA.SequenceEqual(axesB))
+            // v4.0 and v5.1 logs store the axes in a different order, so with ignoreVersion only the
+            // set of axes has to match.
+            if (ignoreVersion && axesA.Length == axesB.Length && !axesA.Except(axesB).Any() && !axesB.Except(axesA).Any())
+            {
+                if (!axesA.SequenceEqual(axesB)) r.Info.Add("axis order differs, ignored");
+            }
+            else if (!axesA.SequenceEqual(axesB))
                 field("Axes", AxisList(axesA), AxisList(axesB));
             if (ignoreVersion && (a.TimeAxisIndex >= 0) != (b.TimeAxisIndex >= 0))
                 r.Info.Add("time axis only in " + (a.TimeAxisIndex >= 0 ? "A" : "B") + ", ignored");

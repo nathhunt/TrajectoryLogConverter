@@ -83,8 +83,9 @@ HalcyonTrajectoryLogTool compare <a.bin | folderA> <b.bin | folderB> [--ignore-v
 ```
 
 * **`to-v5`** converts a v4.0 log to v5.1 (default output: `v5.1` subfolder). It adds the time axis
-  (43) between the control point (42) and the MLC (50), as in the v5.1 axis enumeration
-  (P1069495-002-B, *Header*). Per the spec, the time is seconds since midnight in the "expected"
+  (43) and puts the axes in the order HAL 5.0 machine logs use: Time, ControlPoint, MU, BeamHold,
+  Gantry, Coll, Y1, Y2, X1, X2, couch, MLC (v4.0 logs use Coll, Gantry, jaws, couch, MU, BeamHold,
+  ControlPoint, MLC; the spec does not state either order). Per the spec, the time is seconds since midnight in the "expected"
   record and the "actual" record is empty (written as 0). v4.0 logs do not record clock time, so
   the time axis is either restored from the `_time.csv` that `to-v4 --time-csv` writes, or
   generated as start time + snapshot x 20 ms. The start time comes from `--start-time`, else from
@@ -99,7 +100,7 @@ HalcyonTrajectoryLogTool compare <a.bin | folderA> <b.bin | folderB> [--ignore-v
   prints `SAME` (byte-for-byte or same content) or `DIFF` with a summary per axis and the first
   differing values. Axes are matched by axis id, so a v4.0 log can be compared with a v5.1 log.
   `--ignore-version` ignores the differences between 4.0 and 5.1 that are there by design (version
-  string, time axis, machine specifier and serial number). With two folders, files are matched
+  string, time axis, axis order, machine specifier and serial number). With two folders, files are matched
   by name. Exit code 0 means everything is the same.
 
 A full round trip gives back the original file byte for byte:
