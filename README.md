@@ -79,7 +79,9 @@ Copy the `.exe` to a folder the Eclipse workstations can read, such as a local f
 These are only in the command-line tool (`HalcyonTrajectoryLogTool.exe`), not in the GUI.
 
 ```
+HalcyonTrajectoryLogTool to-v4   <input.bin | folder> [-o <file|folder>] --drop-couch-rotations
 HalcyonTrajectoryLogTool to-v5   <input.bin | folder> [-o <file|folder>] [--time-from <csv>] [--start-time hh:mm:ss]
+                                 [--serial <text>] [--add-couch-rotations]
 HalcyonTrajectoryLogTool version <input.bin | folder> [--expect 4.0|5.1]
 HalcyonTrajectoryLogTool compare <a.bin | folderA> <b.bin | folderB> [--ignore-version] [--tolerance x] [--max-diffs n]
 ```
@@ -96,6 +98,10 @@ HalcyonTrajectoryLogTool compare <a.bin | folderA> <b.bin | folderB> [--ignore-v
   specifier is set to 1 (Halcyon / Ethos, since 0 means TrueBeam) and `--serial` can supply the
   serial number. The axis scale is copied; HAL 5.0 writes 3, so a different value gets a warning
   (couch values are not converted).
+* **`to-v4 --drop-couch-rotations`** leaves the couch rotation, pitch and roll axes (9, 10, 11)
+  out of the converted log. **`to-v5 --add-couch-rotations`** adds any of these three axes that
+  are missing, with expected and actual 0 in every snapshot (axes already in the log are left
+  as they are).
 * **`version`** reads only the first 32 bytes of each file and prints `v4.0` or `v5.1`. With
   `--expect`, a log of any other version is a failure (exit code 1).
 * **`compare`** compares header fields, subbeams and every expected/actual snapshot value. It

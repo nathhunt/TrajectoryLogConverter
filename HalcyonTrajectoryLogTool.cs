@@ -38,6 +38,7 @@
 //   --keep-machine-info     Keep machine specifier + serial number bytes in the header.
 //   --axis-scale <1|2|3>    Header axis-scale value to write (axis values are NOT converted).
 //   --time-csv              Save the removed v5.1 time axis to "<output>_time.csv".
+//   --drop-couch-rotations  Leave out the couch rotation, pitch and roll axes (9, 10, 11).
 //
 // to-v5 options
 //   --time-from <csv>       Restore the time axis from a "_time.csv" written by to-v4 --time-csv.
@@ -45,6 +46,8 @@
 //                           midnight). Default: time of the "_yyyyMMddHHmmss" stamp in the file
 //                           name, else 00:00:00.
 //   --serial <text>         Machine serial number to write (last 6 characters of the serial).
+//   --add-couch-rotations   Add the couch rotation, pitch and roll axes (9, 10, 11) where missing,
+//                           with expected and actual 0 in every snapshot.
 //   --axis-scale <1|2|3>    Header axis-scale value to write (axis values are NOT converted).
 //
 // to-csv options
@@ -389,10 +392,12 @@ namespace HalcyonTrajectoryLogTool
         public bool KeepMachineInfo;
         public int? AxisScale;               // also to-v5
         public bool TimeCsv;
+        public bool DropCouchRotations;
         // to-v5
         public string TimeFrom;
         public double? StartTime;            // seconds since midnight
         public string Serial;
+        public bool AddCouchRotations;
         // to-csv
         public bool NoMlc;
         public bool ActualOnly;
@@ -428,6 +433,8 @@ namespace HalcyonTrajectoryLogTool
                     case "--ignore-crc": o.IgnoreCrc = true; break;
                     case "--keep-machine-info": RequireCmd(o, a, Command.ToV4); o.KeepMachineInfo = true; break;
                     case "--time-csv": RequireCmd(o, a, Command.ToV4); o.TimeCsv = true; break;
+                    case "--drop-couch-rotations": RequireCmd(o, a, Command.ToV4); o.DropCouchRotations = true; break;
+                    case "--add-couch-rotations": RequireCmd(o, a, Command.ToV5); o.AddCouchRotations = true; break;
                     case "--axis-scale":
                         RequireCmd(o, a, Command.ToV4, Command.ToV5);
                         int s;
@@ -529,6 +536,7 @@ namespace HalcyonTrajectoryLogTool
             Console.WriteLine("      --keep-machine-info   keep machine specifier + serial number");
             Console.WriteLine("      --axis-scale <1|2|3>  header axis-scale value (axis data NOT converted)");
             Console.WriteLine("      --time-csv            save the removed time axis to <output>_time.csv");
+            Console.WriteLine("      --drop-couch-rotations  leave out couch rotation, pitch and roll");
             Console.WriteLine();
             Console.WriteLine("  HalcyonTrajectoryLogTool to-csv <input.bin | folder> [-o <folder>] [options]");
             Console.WriteLine("      Export v4.0 / v5.1 logs to <name>.csv.");
@@ -542,6 +550,7 @@ namespace HalcyonTrajectoryLogTool
             Console.WriteLine("      --time-from <csv>     restore the time axis from a to-v4 --time-csv file");
             Console.WriteLine("      --start-time <t>      first snapshot clock time, hh:mm:ss[.fff] (default: from file name)");
             Console.WriteLine("      --serial <text>       machine serial number (last 6 characters)");
+            Console.WriteLine("      --add-couch-rotations add couch rotation, pitch and roll (if missing) with value 0");
             Console.WriteLine("      --axis-scale <1|2|3>  header axis-scale value (axis data NOT converted)");
             Console.WriteLine();
             Console.WriteLine("  HalcyonTrajectoryLogTool version <input.bin | folder> [--expect <4.0|5.1>]");
@@ -578,6 +587,7 @@ namespace HalcyonTrajectoryLogTool
         public const int SubbeamBytes = 560;
         public const int CrcBytes = 2;
         public const int TimeAxisId = 43;
+        public static readonly int[] CouchRotationAxisIds = { 9, 10, 11 }; // CouchRtn, CouchPit, CouchRol
 
         public byte[] Raw;
         public string Version;
@@ -819,8 +829,14 @@ namespace HalcyonTrajectoryLogTool
             }
             for (int i = 0; i < log.NumAxes; i++)
                 if (i != timeIdx && !keep.Contains(i)) keep.Add(i);
+            bool reordered = !keep.SequenceEqual(Enumerable.Range(0, log.NumAxes).Where(i => i != timeIdx));
+            var dropped = new List<int>();
+            if (opt.DropCouchRotations)
+            {
+                dropped = keep.Where(i => Array.IndexOf(TrajectoryLog.CouchRotationAxisIds, log.AxisIds[i]) >= 0).ToList();
+                keep.RemoveAll(dropped.Contains);
+            }
             int[] keepIdx = keep.ToArray();
-            bool reordered = !keepIdx.SequenceEqual(Enumerable.Range(0, log.NumAxes).Where(i => i != timeIdx));
             int newAxisScale = opt.AxisScale ?? log.AxisScale;
 
             // Header
@@ -845,8 +861,7 @@ namespace HalcyonTrajectoryLogTool
 
             // Body
             int snapBytes = log.FloatsPerSnapshot * 4;
-            int timeBytes = timeIdx >= 0 ? log.SamplesPerAxis[timeIdx] * 2 * 4 : 0;
-            int newSnapBytes = snapBytes - timeBytes;
+            int newSnapBytes = keepIdx.Sum(i => log.SamplesPerAxis[i]) * 2 * 4;
             long outLength = (long)TrajectoryLog.HeaderSize + (long)log.NumSubbeamsField * TrajectoryLog.SubbeamBytes
                              + (long)log.NumSnapshots * newSnapBytes + TrajectoryLog.CrcBytes;
             if (outLength > int.MaxValue) throw new InvalidDataException("Output would exceed 2 GB.");
@@ -878,6 +893,10 @@ namespace HalcyonTrajectoryLogTool
                 log.NumAxes, keepIdx.Length, log.NumSubbeamsField, log.NumSnapshots, src.Length, dst.Length));
             if (reordered)
                 notes.Add("Axes reordered to the v4.0 order: " + string.Join(", ", keepIdx.Select(i => TrajectoryLog.AxisName(log.AxisIds[i]))) + ".");
+            if (opt.DropCouchRotations)
+                notes.Add(dropped.Count > 0
+                    ? "Couch axes removed: " + string.Join(", ", dropped.Select(i => TrajectoryLog.AxisName(log.AxisIds[i]))) + "."
+                    : "No couch rotation / pitch / roll axes to remove.");
             if (log.AxisScale == 3 && newAxisScale == 3)
                 notes.Add("Axis scale kept at 3 (machine scale, isocentric couch) - valid in v4.0.");
             if (opt.AxisScale.HasValue && opt.AxisScale.Value != log.AxisScale)
@@ -914,18 +933,25 @@ namespace HalcyonTrajectoryLogTool
             TimeValues(log, opt, sourcePath, notes, out expTime, out actTime);
 
             // Axes in the order HAL 5.0 writes them; any other axes follow in their input order.
-            // srcAxis[j] = input axis index of output axis j, or -1 for the new time axis.
-            var srcAxis = new List<int> { -1 };
+            // srcAxis[j] = input axis index of output axis j, NewTime for the time axis, or NewZero
+            // for a couch axis added by --add-couch-rotations (1 sample, expected = actual = 0).
+            const int NewTime = -1, NewZero = -2;
+            var srcAxis = new List<int> { NewTime };
+            var axisIds = new List<int> { TrajectoryLog.TimeAxisId };
+            var added = new List<int>();
             foreach (int id in V51AxisOrder)
             {
                 int i = Array.IndexOf(log.AxisIds, id);
-                if (i >= 0) srcAxis.Add(i);
+                if (i >= 0) { srcAxis.Add(i); axisIds.Add(id); }
+                else if (opt.AddCouchRotations && Array.IndexOf(TrajectoryLog.CouchRotationAxisIds, id) >= 0)
+                {
+                    srcAxis.Add(NewZero); axisIds.Add(id); added.Add(id);
+                }
             }
             for (int i = 0; i < log.NumAxes; i++)
-                if (!srcAxis.Contains(i)) srcAxis.Add(i);
-            var axisIds = srcAxis.Select(i => i < 0 ? TrajectoryLog.TimeAxisId : log.AxisIds[i]).ToList();
+                if (!srcAxis.Contains(i)) { srcAxis.Add(i); axisIds.Add(log.AxisIds[i]); }
             var samples = srcAxis.Select(i => i < 0 ? 1 : log.SamplesPerAxis[i]).ToList();
-            bool reordered = !srcAxis.Skip(1).SequenceEqual(Enumerable.Range(0, log.NumAxes));
+            bool reordered = !srcAxis.Where(i => i >= 0).SequenceEqual(Enumerable.Range(0, log.NumAxes));
             int newAxisScale = opt.AxisScale ?? log.AxisScale;
 
             // Header
@@ -962,9 +988,9 @@ namespace HalcyonTrajectoryLogTool
 
             // Body
             int snapBytes = log.FloatsPerSnapshot * 4;
-            const int timeBytes = 2 * 4;
+            const int oneSampleBytes = 2 * 4;
             long outLength = (long)TrajectoryLog.HeaderSize + (long)log.NumSubbeamsField * TrajectoryLog.SubbeamBytes
-                             + (long)log.NumSnapshots * (snapBytes + timeBytes) + TrajectoryLog.CrcBytes;
+                             + (long)log.NumSnapshots * (snapBytes + oneSampleBytes * (1 + added.Count)) + TrajectoryLog.CrcBytes;
             if (outLength > int.MaxValue) throw new InvalidDataException("Output would exceed 2 GB.");
             var dst = new byte[outLength];
 
@@ -978,11 +1004,16 @@ namespace HalcyonTrajectoryLogTool
                 int sp = log.DataOffset + s * snapBytes;
                 foreach (int i in srcAxis)
                 {
-                    if (i < 0)
+                    if (i == NewTime)
                     {
                         BinUtil.WriteFloat(dst, dstPos, expTime[s]);
                         BinUtil.WriteFloat(dst, dstPos + 4, actTime[s]);
-                        dstPos += timeBytes;
+                        dstPos += oneSampleBytes;
+                        continue;
+                    }
+                    if (i == NewZero)
+                    {
+                        dstPos += oneSampleBytes; // dst is zero-filled: 0.0f expected and actual
                         continue;
                     }
                     int bytes = log.SamplesPerAxis[i] * 2 * 4;
@@ -1001,6 +1032,10 @@ namespace HalcyonTrajectoryLogTool
                 log.NumAxes, axisIds.Count, log.NumSubbeamsField, log.NumSnapshots, src.Length, dst.Length));
             if (reordered)
                 notes.Add("Axes reordered to the v5.1 order: " + string.Join(", ", axisIds.Select(TrajectoryLog.AxisName)) + ".");
+            if (opt.AddCouchRotations)
+                notes.Add(added.Count > 0
+                    ? "Couch axes added with value 0: " + string.Join(", ", added.Select(TrajectoryLog.AxisName)) + "."
+                    : "Couch rotation / pitch / roll axes already present; left unchanged.");
             if (opt.AxisScale.HasValue && opt.AxisScale.Value != log.AxisScale)
                 notes.Add(string.Format("WARNING: axis-scale flag changed {0} -> {1}; axis values were NOT converted.",
                                         log.AxisScale, newAxisScale));
