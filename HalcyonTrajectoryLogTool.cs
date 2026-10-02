@@ -47,7 +47,8 @@
 //                           name, else 00:00:00.
 //   --serial <text>         Machine serial number to write (last 6 characters of the serial).
 //   --add-couch-rotations   Add the couch rotation, pitch and roll axes (9, 10, 11) where missing,
-//                           with expected and actual 0 in every snapshot.
+//                           with the couch at its zero position in every snapshot: rotation 180
+//                           in machine scale (axis scale 1 or 3) or 0 in IEC (2); pitch, roll 0.
 //   --axis-scale <1|2|3>    Header axis-scale value to write (axis values are NOT converted).
 //
 // to-csv options
@@ -550,7 +551,7 @@ namespace HalcyonTrajectoryLogTool
             Console.WriteLine("      --time-from <csv>     restore the time axis from a to-v4 --time-csv file");
             Console.WriteLine("      --start-time <t>      first snapshot clock time, hh:mm:ss[.fff] (default: from file name)");
             Console.WriteLine("      --serial <text>       machine serial number (last 6 characters)");
-            Console.WriteLine("      --add-couch-rotations add couch rotation, pitch and roll (if missing) with value 0");
+            Console.WriteLine("      --add-couch-rotations add couch rotation, pitch and roll (if missing) at the zero position");
             Console.WriteLine("      --axis-scale <1|2|3>  header axis-scale value (axis data NOT converted)");
             Console.WriteLine();
             Console.WriteLine("  HalcyonTrajectoryLogTool version <input.bin | folder> [--expect <4.0|5.1>]");
@@ -779,6 +780,16 @@ namespace HalcyonTrajectoryLogTool
             return "";
         }
 
+        /// <summary>
+        /// Reading of couch rotation / pitch / roll with the couch at its zero position. In the Varian
+        /// machine scales (1 and 3) couch rotation reads 180 deg at the IEC 0 position (machine logs
+        /// with axis scale 3 show 180.04); in Modified IEC 61217 (2) it reads 0. Pitch and roll read 0.
+        /// </summary>
+        public static float CouchZeroPosition(int axisId, int axisScale)
+        {
+            return axisId == 9 && axisScale != 2 ? 180f : 0f;
+        }
+
         public static string AxisScaleName(int s)
         {
             switch (s)
@@ -933,9 +944,9 @@ namespace HalcyonTrajectoryLogTool
             TimeValues(log, opt, sourcePath, notes, out expTime, out actTime);
 
             // Axes in the order HAL 5.0 writes them; any other axes follow in their input order.
-            // srcAxis[j] = input axis index of output axis j, NewTime for the time axis, or NewZero
-            // for a couch axis added by --add-couch-rotations (1 sample, expected = actual = 0).
-            const int NewTime = -1, NewZero = -2;
+            // srcAxis[j] = input axis index of output axis j, NewTime for the time axis, or NewCouch
+            // for a couch axis added by --add-couch-rotations (1 sample, couch at its zero position).
+            const int NewTime = -1, NewCouch = -2;
             var srcAxis = new List<int> { NewTime };
             var axisIds = new List<int> { TrajectoryLog.TimeAxisId };
             var added = new List<int>();
@@ -945,7 +956,7 @@ namespace HalcyonTrajectoryLogTool
                 if (i >= 0) { srcAxis.Add(i); axisIds.Add(id); }
                 else if (opt.AddCouchRotations && Array.IndexOf(TrajectoryLog.CouchRotationAxisIds, id) >= 0)
                 {
-                    srcAxis.Add(NewZero); axisIds.Add(id); added.Add(id);
+                    srcAxis.Add(NewCouch); axisIds.Add(id); added.Add(id);
                 }
             }
             for (int i = 0; i < log.NumAxes; i++)
@@ -1002,8 +1013,9 @@ namespace HalcyonTrajectoryLogTool
             for (int s = 0; s < log.NumSnapshots; s++)
             {
                 int sp = log.DataOffset + s * snapBytes;
-                foreach (int i in srcAxis)
+                for (int j = 0; j < srcAxis.Count; j++)
                 {
+                    int i = srcAxis[j];
                     if (i == NewTime)
                     {
                         BinUtil.WriteFloat(dst, dstPos, expTime[s]);
@@ -1011,9 +1023,12 @@ namespace HalcyonTrajectoryLogTool
                         dstPos += oneSampleBytes;
                         continue;
                     }
-                    if (i == NewZero)
+                    if (i == NewCouch)
                     {
-                        dstPos += oneSampleBytes; // dst is zero-filled: 0.0f expected and actual
+                        float zero = TrajectoryLog.CouchZeroPosition(axisIds[j], newAxisScale);
+                        BinUtil.WriteFloat(dst, dstPos, zero);
+                        BinUtil.WriteFloat(dst, dstPos + 4, zero);
+                        dstPos += oneSampleBytes;
                         continue;
                     }
                     int bytes = log.SamplesPerAxis[i] * 2 * 4;
@@ -1034,7 +1049,9 @@ namespace HalcyonTrajectoryLogTool
                 notes.Add("Axes reordered to the v5.1 order: " + string.Join(", ", axisIds.Select(TrajectoryLog.AxisName)) + ".");
             if (opt.AddCouchRotations)
                 notes.Add(added.Count > 0
-                    ? "Couch axes added with value 0: " + string.Join(", ", added.Select(TrajectoryLog.AxisName)) + "."
+                    ? "Couch axes added at the zero position for axis scale " + newAxisScale + ": " +
+                      string.Join(", ", added.Select(id => TrajectoryLog.AxisName(id) + " = " +
+                          Fmt.Num(TrajectoryLog.CouchZeroPosition(id, newAxisScale)))) + "."
                     : "Couch rotation / pitch / roll axes already present; left unchanged.");
             if (opt.AxisScale.HasValue && opt.AxisScale.Value != log.AxisScale)
                 notes.Add(string.Format("WARNING: axis-scale flag changed {0} -> {1}; axis values were NOT converted.",

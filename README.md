@@ -100,8 +100,10 @@ HalcyonTrajectoryLogTool compare <a.bin | folderA> <b.bin | folderB> [--ignore-v
   (couch values are not converted).
 * **`to-v4 --drop-couch-rotations`** leaves the couch rotation, pitch and roll axes (9, 10, 11)
   out of the converted log. **`to-v5 --add-couch-rotations`** adds any of these three axes that
-  are missing, with expected and actual 0 in every snapshot (axes already in the log are left
-  as they are).
+  are missing, with the couch at its zero position in every snapshot (expected and actual):
+  rotation 180° in the Varian machine scale (axis scale 1 or 3, as in HAL 5.0 logs) or 0° in
+  Modified IEC 61217 (axis scale 2), and pitch and roll 0°. Axes already in the log are left as
+  they are.
 * **`version`** reads only the first 32 bytes of each file and prints `v4.0` or `v5.1`. With
   `--expect`, a log of any other version is a failure (exit code 1).
 * **`compare`** compares header fields, subbeams and every expected/actual snapshot value. It
