@@ -3,10 +3,12 @@
 | File | What it is |
 |---|---|
 | `TrajectoryLogConverter.sln` | Solution for the GUI and the command-line tool (Visual Studio or VS Code). |
-| `HalcyonTrajectoryLogTool.cs` | Conversion engine + command-line tool (`to-v4`, `to-csv`). |
+| `HalcyonTrajectoryLogTool.cs` | Conversion engine + command-line tool (`to-v4`, `to-csv`, and for validation `to-v5`, `version`, `compare`). |
 | `HalcyonTrajectoryLogTool/` | Project for the command-line tool. |
 | `HalcyonTrajectoryLogGui/` | Stand-alone Windows GUI (x64, .NET Framework 4.8) built on the engine. |
 | `EclipseLauncher/LaunchHalcyonTrajectoryLogTool.cs` | Single-file ESAPI plug-in script that starts the GUI from Eclipse. |
+| `scripts/RoundTripTest.ps1` | Round-trip test for the command-line tool (v5.1 -> v4.0 -> v5.1 and back, then compare). |
+| `.vscode/` | VS Code build tasks, launch (debug) configurations and settings. |
 
 ## GUI
 
@@ -17,6 +19,8 @@
 * **Output:** choose an export folder and tick **Convert v5.1 to v4.0** and/or **Export CSV**.
   Output files keep the original file name, and subfolder structure is mirrored.
   v4.0 logs are skipped for conversion (they are already v4.0) but can still be exported to CSV.
+  Converted logs have the time axis removed and the axes put in the order v4.0 machines write them
+  (Coll, Gantry, jaws, couch, MU, BeamHold, ControlPoint, MLC). v5.1 logs use a different order.
 * Each run writes `TrajectoryLogConversion_<date>_<time>.log` to the export folder.
 * Optional arguments that pre-fill the form: `--input <file|folder> --output <folder> --mode v4|csv|both`.
 
@@ -34,11 +38,28 @@ Pack is not required. The first build needs access to nuget.org.
 use **Build > Build Solution**. This needs the **.NET desktop development** workload.
 
 **VS Code:** install the [.NET SDK](https://dotnet.microsoft.com/download) (6.0 or later) and the
-**C# Dev Kit** extension. Open the repository folder, then either build from the Solution Explorer
-or run this in the terminal:
+**C#** extension (VS Code offers it when the folder is opened; C# Dev Kit is not needed). Open the
+repository folder, then press **Ctrl+Shift+B** to build, or run this in the terminal:
 
 ```
 dotnet build TrajectoryLogConverter.sln -c Release
+```
+
+The `.vscode` folder holds the shared workspace setup:
+
+| File | What it has |
+|---|---|
+| `tasks.json` | **build** (Debug, default), **build release** (also fills `Deploy\`), **build release to folder** (asks for the deploy folder), **build tool** / **build tool release** (command-line tool only), **clean**, **rebuild**; **tool: run** (`to-v4` / `to-csv` / `to-v5`), **tool: check versions**, **tool: compare**, **tool: round-trip test**; **open Deploy folder**. Run them from **Terminal > Run Task**. |
+| `launch.json` | Debug the GUI (empty or pre-filled form) and the command-line tool (convert / export, version, compare), or attach to a running process. Press **F5** and pick one. |
+| `settings.json` | Uses the C# extension on its own and loads `TrajectoryLogConverter.sln`. |
+| `extensions.json` | Recommends the C# extension. |
+
+`scripts\RoundTripTest.ps1` converts each log in a file or folder to the other version and back,
+then compares the result with the original; every log should come back byte-for-byte identical.
+Outputs go to a `roundtrip` folder next to the input:
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\RoundTripTest.ps1 -Path D:\Logs
 ```
 
 The solution contains:
@@ -71,6 +92,63 @@ dotnet build TrajectoryLogConverter.sln -c Release -p:DeployDir=\\server\ESAPI\T
 ```
 
 Copy the `.exe` to a folder the Eclipse workstations can read, such as a local folder or a network share.
+
+## Validation and testing commands
+
+These are only in the command-line tool (`HalcyonTrajectoryLogTool.exe`), not in the GUI.
+
+```
+HalcyonTrajectoryLogTool to-v4   <input.bin | folder> [-o <file|folder>] --drop-couch-rotations
+HalcyonTrajectoryLogTool to-v5   <input.bin | folder> [-o <file|folder>] [--time-from <csv>] [--start-time hh:mm:ss]
+                                 [--serial <text>] [--add-couch-rotations]
+HalcyonTrajectoryLogTool version <input.bin | folder> [--expect 4.0|5.1]
+HalcyonTrajectoryLogTool compare <a.bin | folderA> <b.bin | folderB> [--ignore-version] [--tolerance x] [--max-diffs n]
+```
+
+* **`to-v5`** converts a v4.0 log to v5.1 (default output: `v5.1` subfolder). It adds the time axis
+  (43) and puts the axes in the order HAL 5.0 machine logs use: Time, ControlPoint, MU, BeamHold,
+  Gantry, Coll, Y1, Y2, X1, X2, couch, MLC (v4.0 logs use Coll, Gantry, jaws, couch, MU, BeamHold,
+  ControlPoint, MLC; the spec does not state either order). Per the spec, the time is seconds since midnight in the "expected"
+  record and the "actual" record is empty (written as 0). v4.0 logs do not record clock time, so
+  the time axis is either restored from the `_time.csv` that `to-v4 --time-csv` writes, or
+  generated as start time + snapshot x 20 ms. The start time comes from `--start-time`, else from
+  the `_yyyyMMddHHmmss` stamp in the file name. Generated times leave out beam pauses.
+  The machine specifier and serial number are copied; if they were zeroed by `to-v4`, the
+  specifier is set to 1 (Halcyon / Ethos, since 0 means TrueBeam) and `--serial` can supply the
+  serial number. The axis scale is copied; HAL 5.0 writes 3, so a different value gets a warning
+  (couch values are not converted).
+* **`to-v4 --drop-couch-rotations`** leaves the couch rotation, pitch and roll axes (9, 10, 11)
+  out of the converted log. **`to-v5 --add-couch-rotations`** adds any of these three axes that
+  are missing, with the couch at its zero position in every snapshot (expected and actual):
+  rotation 180° in the Varian machine scale (axis scale 1 or 3, as in HAL 5.0 logs) or 0° in
+  Modified IEC 61217 (axis scale 2), and pitch and roll 0°. Axes already in the log are left as
+  they are.
+* **`version`** reads only the first 32 bytes of each file and prints `v4.0` or `v5.1`. With
+  `--expect`, a log of any other version is a failure (exit code 1).
+* **`compare`** compares header fields, subbeams and every expected/actual snapshot value. It
+  prints `SAME` (byte-for-byte or same content) or `DIFF` with a summary per axis and the first
+  differing values. Axes are matched by axis id, so a v4.0 log can be compared with a v5.1 log.
+  `--ignore-version` ignores the differences between 4.0 and 5.1 that are there by design (version
+  string, time axis, axis order, machine specifier and serial number). With two folders, files are matched
+  by name. Exit code 0 means everything is the same.
+
+A full round trip gives back the original file byte for byte:
+
+```
+HalcyonTrajectoryLogTool to-v4 log.bin -o v4\ --time-csv --keep-machine-info
+HalcyonTrajectoryLogTool to-v5 v4\log.bin -o rt\ --time-from v4\log_time.csv
+HalcyonTrajectoryLogTool compare log.bin rt\log.bin
+```
+
+To check that a v4.0 conversion kept all the data, compare it with the original using `--ignore-version`:
+
+```
+HalcyonTrajectoryLogTool compare original\ converted\v4.0\ --ignore-version
+```
+
+The `_time.csv` written by `to-v4 --time-csv` now also has `Expected` and `Actual` columns with
+the exact time values, which `to-v5 --time-from` uses. Older `_time.csv` files still work but
+restore the time to the nearest millisecond only.
 
 ## Eclipse launcher
 

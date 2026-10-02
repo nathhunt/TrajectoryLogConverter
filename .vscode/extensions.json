@@ -1,0 +1,7 @@
+{
+    // Extensions VS Code offers to install when this folder is opened.
+    // settings.json uses the C# extension on its own, so C# Dev Kit is not needed.
+    "recommendations": [
+        "ms-dotnettools.csharp"
+    ]
+}
