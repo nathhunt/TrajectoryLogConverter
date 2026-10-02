@@ -7,6 +7,8 @@
 | `HalcyonTrajectoryLogTool/` | Project for the command-line tool. |
 | `HalcyonTrajectoryLogGui/` | Stand-alone Windows GUI (x64, .NET Framework 4.8) built on the engine. |
 | `EclipseLauncher/LaunchHalcyonTrajectoryLogTool.cs` | Single-file ESAPI plug-in script that starts the GUI from Eclipse. |
+| `scripts/RoundTripTest.ps1` | Round-trip test for the command-line tool (v5.1 -> v4.0 -> v5.1 and back, then compare). |
+| `.vscode/` | VS Code build tasks, launch (debug) configurations and settings. |
 
 ## GUI
 
@@ -36,11 +38,28 @@ Pack is not required. The first build needs access to nuget.org.
 use **Build > Build Solution**. This needs the **.NET desktop development** workload.
 
 **VS Code:** install the [.NET SDK](https://dotnet.microsoft.com/download) (6.0 or later) and the
-**C# Dev Kit** extension. Open the repository folder, then either build from the Solution Explorer
-or run this in the terminal:
+**C#** extension (VS Code offers it when the folder is opened; C# Dev Kit is not needed). Open the
+repository folder, then press **Ctrl+Shift+B** to build, or run this in the terminal:
 
 ```
 dotnet build TrajectoryLogConverter.sln -c Release
+```
+
+The `.vscode` folder holds the shared workspace setup:
+
+| File | What it has |
+|---|---|
+| `tasks.json` | **build** (Debug, default), **build release** (also fills `Deploy\`), **build release to folder** (asks for the deploy folder), **build tool** / **build tool release** (command-line tool only), **clean**, **rebuild**; **tool: run** (`to-v4` / `to-csv` / `to-v5`), **tool: check versions**, **tool: compare**, **tool: round-trip test**; **open Deploy folder**. Run them from **Terminal > Run Task**. |
+| `launch.json` | Debug the GUI (empty or pre-filled form) and the command-line tool (convert / export, version, compare), or attach to a running process. Press **F5** and pick one. |
+| `settings.json` | Uses the C# extension on its own and loads `TrajectoryLogConverter.sln`. |
+| `extensions.json` | Recommends the C# extension. |
+
+`scripts\RoundTripTest.ps1` converts each log in a file or folder to the other version and back,
+then compares the result with the original; every log should come back byte-for-byte identical.
+Outputs go to a `roundtrip` folder next to the input:
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\RoundTripTest.ps1 -Path D:\Logs
 ```
 
 The solution contains:

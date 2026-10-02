@@ -1,0 +1,6 @@
+{
+    // Use the C# extension on its own (no C# Dev Kit).
+    "dotnet.preferCSharpExtension": true,
+    // Load this solution so IntelliSense sees both projects and the shared HalcyonTrajectoryLogTool.cs.
+    "dotnet.defaultSolution": "TrajectoryLogConverter.sln"
+}

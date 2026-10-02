@@ -1,0 +1,119 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    //
+    // The projects target .NET Framework 4.8, so the debugger type is "clr" (Windows only),
+    // not "coreclr", and the program is the built .exe rather than a .dll.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Trajectory Log Converter (GUI)",
+            "type": "clr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/HalcyonTrajectoryLogGui/bin/x64/Debug/HalcyonTrajectoryLogGui.exe",
+            // Optional: pre-fill the form, e.g. ["--input", "C:\\Logs", "--output", "C:\\Logs\\Converted", "--mode", "both"]
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Trajectory Log Converter (GUI, pre-filled)",
+            "type": "clr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/HalcyonTrajectoryLogGui/bin/x64/Debug/HalcyonTrajectoryLogGui.exe",
+            "args": ["--input", "${input:inputPath}", "--output", "${input:outputFolder}", "--mode", "${input:guiMode}"],
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Trajectory Log Tool (convert / export)",
+            "type": "clr",
+            "request": "launch",
+            "preLaunchTask": "build tool",
+            "program": "${workspaceFolder}/HalcyonTrajectoryLogTool/bin/x64/Debug/HalcyonTrajectoryLogTool.exe",
+            "args": ["${input:command}", "${input:inputPath}", "--overwrite"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Trajectory Log Tool (version)",
+            "type": "clr",
+            "request": "launch",
+            "preLaunchTask": "build tool",
+            "program": "${workspaceFolder}/HalcyonTrajectoryLogTool/bin/x64/Debug/HalcyonTrajectoryLogTool.exe",
+            "args": ["version", "${input:inputPath}"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Trajectory Log Tool (compare)",
+            "type": "clr",
+            "request": "launch",
+            "preLaunchTask": "build tool",
+            "program": "${workspaceFolder}/HalcyonTrajectoryLogTool/bin/x64/Debug/HalcyonTrajectoryLogTool.exe",
+            "args": ["compare", "${input:compareA}", "${input:compareB}", "${input:compareMode}"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Attach to process",
+            "type": "clr",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "command",
+            "type": "pickString",
+            "description": "Command to run",
+            "options": ["to-v4", "to-csv", "to-v5"],
+            "default": "to-v4"
+        },
+        {
+            "id": "inputPath",
+            "type": "promptString",
+            "description": "Log file (.bin) or folder of logs"
+        },
+        {
+            "id": "outputFolder",
+            "type": "promptString",
+            "description": "Export folder"
+        },
+        {
+            "id": "guiMode",
+            "type": "pickString",
+            "description": "What the GUI should do",
+            "options": ["v4", "csv", "both"],
+            "default": "both"
+        },
+        {
+            "id": "compareA",
+            "type": "promptString",
+            "description": "First log file (.bin) or folder"
+        },
+        {
+            "id": "compareB",
+            "type": "promptString",
+            "description": "Second log file (.bin) or folder"
+        },
+        {
+            "id": "compareMode",
+            "type": "pickString",
+            "description": "What to compare",
+            "options": [
+                { "label": "everything (exact)", "value": "" },
+                { "label": "--ignore-version (version string, time axis, axis order, machine info)", "value": "--ignore-version" }
+            ],
+            "default": ""
+        }
+    ]
+}

@@ -426,6 +426,7 @@ namespace HalcyonTrajectoryLogTool
             for (int i = 1; i < args.Length; i++)
             {
                 string a = args[i];
+                if (a.Length == 0) continue; // e.g. an empty optional argument from a VS Code launch input
                 switch (a)
                 {
                     case "-h": case "--help": case "/?": return null;

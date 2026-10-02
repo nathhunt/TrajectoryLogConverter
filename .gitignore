@@ -6,5 +6,9 @@ obj/
 *.suo
 Deploy/
 
-# VScode
-.vscode/
+# VS Code: share the workspace settings, tasks and launch configurations
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

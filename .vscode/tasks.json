@@ -1,0 +1,219 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format.
+    //
+    // Run with Terminal > Run Task (Ctrl+Shift+B runs the default "build").
+    // The projects target .NET Framework 4.8 x64, so the built .exe files run on Windows only.
+    "version": "2.0.0",
+    "tasks": [
+        // ------------------------------------------------------------------------------------
+        // Build
+        // ------------------------------------------------------------------------------------
+        {
+            // Debug build of both projects (used by launch.json). Output: <project>\bin\x64\Debug\
+            "label": "build",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "build",
+                "${workspaceFolder}/TrajectoryLogConverter.sln",
+                "-c", "Debug",
+                // Full paths so errors in the Problems panel are clickable.
+                "-p:GenerateFullPaths=true",
+                // No summary, otherwise errors show up twice in the Problems panel.
+                "-consoleLoggerParameters:NoSummary"
+            ],
+            "group": { "kind": "build", "isDefault": true },
+            "presentation": { "reveal": "silent" },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            // Release build: also copies the GUI exe, .exe.config and Eclipse launcher to Deploy\
+            "label": "build release",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "build",
+                "${workspaceFolder}/TrajectoryLogConverter.sln",
+                "-c", "Release",
+                "-p:GenerateFullPaths=true",
+                "-consoleLoggerParameters:NoSummary"
+            ],
+            "group": "build",
+            "presentation": { "reveal": "always" },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            // Release build straight into a deploy folder of your choice (e.g. a network share).
+            "label": "build release to folder",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "build",
+                "${workspaceFolder}/TrajectoryLogConverter.sln",
+                "-c", "Release",
+                "-p:DeployDir=${input:deployDir}",
+                "-p:GenerateFullPaths=true",
+                "-consoleLoggerParameters:NoSummary"
+            ],
+            "group": "build",
+            "presentation": { "reveal": "always" },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            // Debug build of the command-line tool only.
+            // Output: HalcyonTrajectoryLogTool\bin\x64\Debug\HalcyonTrajectoryLogTool.exe
+            "label": "build tool",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "build",
+                "${workspaceFolder}/HalcyonTrajectoryLogTool/HalcyonTrajectoryLogTool.csproj",
+                "-c", "Debug",
+                // Same output folder as the solution build (bin\x64\...).
+                "-p:Platform=x64",
+                "-p:GenerateFullPaths=true",
+                "-consoleLoggerParameters:NoSummary"
+            ],
+            "group": "build",
+            "presentation": { "reveal": "silent" },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            // Release build of the command-line tool only.
+            // Output: HalcyonTrajectoryLogTool\bin\x64\Release\HalcyonTrajectoryLogTool.exe
+            "label": "build tool release",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "build",
+                "${workspaceFolder}/HalcyonTrajectoryLogTool/HalcyonTrajectoryLogTool.csproj",
+                "-c", "Release",
+                "-p:Platform=x64",
+                "-p:GenerateFullPaths=true",
+                "-consoleLoggerParameters:NoSummary"
+            ],
+            "group": "build",
+            "presentation": { "reveal": "always" },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "clean",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "clean",
+                "${workspaceFolder}/TrajectoryLogConverter.sln",
+                "-consoleLoggerParameters:NoSummary"
+            ],
+            "presentation": { "reveal": "silent" },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            // Clean, then Debug build, e.g. after switching branches.
+            "label": "rebuild",
+            "dependsOrder": "sequence",
+            "dependsOn": ["clean", "build"],
+            "group": "build",
+            "problemMatcher": []
+        },
+
+        // ------------------------------------------------------------------------------------
+        // Run the command-line tool (Debug build) without the debugger.
+        // Output paths follow the tool's defaults (e.g. a "v4.0" subfolder next to the input).
+        // ------------------------------------------------------------------------------------
+        {
+            "label": "tool: run",
+            "type": "process",
+            "command": "${workspaceFolder}/HalcyonTrajectoryLogTool/bin/x64/Debug/HalcyonTrajectoryLogTool.exe",
+            "args": ["${input:command}", "${input:inputPath}", "--overwrite"],
+            "dependsOn": "build tool",
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "tool: check versions",
+            "type": "process",
+            "command": "${workspaceFolder}/HalcyonTrajectoryLogTool/bin/x64/Debug/HalcyonTrajectoryLogTool.exe",
+            "args": ["version", "${input:inputPath}"],
+            "dependsOn": "build tool",
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "tool: compare",
+            "type": "process",
+            "command": "${workspaceFolder}/HalcyonTrajectoryLogTool/bin/x64/Debug/HalcyonTrajectoryLogTool.exe",
+            "args": ["compare", "${input:compareA}", "${input:compareB}", "${input:compareMode}"],
+            "dependsOn": "build tool",
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+            "problemMatcher": []
+        },
+        {
+            // scripts\RoundTripTest.ps1: v5.1 -> v4.0 -> v5.1 (or v4.0 -> v5.1 -> v4.0) and compare;
+            // every log should come back byte-for-byte identical. Outputs go to <folder>\roundtrip\.
+            "label": "tool: round-trip test",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/scripts/RoundTripTest.ps1",
+                "-Path", "${input:inputPath}"
+            ],
+            "dependsOn": "build tool",
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+            "problemMatcher": []
+        },
+
+        // ------------------------------------------------------------------------------------
+        // Misc
+        // ------------------------------------------------------------------------------------
+        {
+            "label": "open Deploy folder",
+            "type": "process",
+            "command": "explorer.exe",
+            "args": ["${workspaceFolder}\\Deploy"],
+            "presentation": { "reveal": "never" },
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "command",
+            "type": "pickString",
+            "description": "Command to run",
+            "options": ["to-v4", "to-csv", "to-v5"],
+            "default": "to-v4"
+        },
+        {
+            "id": "inputPath",
+            "type": "promptString",
+            "description": "Log file (.bin) or folder of logs"
+        },
+        {
+            "id": "compareA",
+            "type": "promptString",
+            "description": "First log file (.bin) or folder"
+        },
+        {
+            "id": "compareB",
+            "type": "promptString",
+            "description": "Second log file (.bin) or folder"
+        },
+        {
+            "id": "compareMode",
+            "type": "pickString",
+            "description": "What to compare",
+            "options": [
+                { "label": "everything (exact)", "value": "" },
+                { "label": "--ignore-version (version string, time axis, axis order, machine info)", "value": "--ignore-version" }
+            ],
+            "default": ""
+        },
+        {
+            "id": "deployDir",
+            "type": "promptString",
+            "description": "Deploy folder, e.g. \\\\server\\ESAPI\\TrajectoryLog"
+        }
+    ]
+}
