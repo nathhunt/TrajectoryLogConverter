@@ -17,6 +17,8 @@
 * **Output:** choose an export folder and tick **Convert v5.1 to v4.0** and/or **Export CSV**.
   Output files keep the original file name, and subfolder structure is mirrored.
   v4.0 logs are skipped for conversion (they are already v4.0) but can still be exported to CSV.
+  Converted logs have the time axis removed and the axes put in the order v4.0 machines write them
+  (Coll, Gantry, jaws, couch, MU, BeamHold, ControlPoint, MLC). v5.1 logs use a different order.
 * Each run writes `TrajectoryLogConversion_<date>_<time>.log` to the export folder.
 * Optional arguments that pre-fill the form: `--input <file|folder> --output <folder> --mode v4|csv|both`.
 

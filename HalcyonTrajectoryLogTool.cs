@@ -68,10 +68,14 @@
 //   1. Version string "5.1" -> "4.0".
 //   2. Time axis (enum 43) removed from the axis enumeration, samples-per-axis arrays, axis
 //      count, and from every snapshot.
-//   3. Machine specifier (1 byte) + serial number (6 bytes) are zeroed unless
+//   3. Axes put in the order v4.0 machine logs use: Coll, Gantry, Y1, Y2, X1, X2, couch (6 - 11),
+//      MU, BeamHold, ControlPoint, MLC. HAL 5.0 writes Time, ControlPoint, MU, BeamHold, Gantry,
+//      Coll, ... instead; the spec does not give either order, so readers that assume the v4.0
+//      order would otherwise mislabel the axes.
+//   4. Machine specifier (1 byte) + serial number (6 bytes) are zeroed unless
 //      --keep-machine-info. The 5.1 spec lists them as new in 5.1, although the header table
 //      of the 4.0 spec (P1069495-001-A) also has them.
-//   4. Axis scale copied unchanged (5.1 writes 3, which is also a legal 4.0 value).
+//   5. Axis scale copied unchanged (5.1 writes 3, which is also a legal 4.0 value).
 //   Header rebuilt, subbeams copied verbatim, CRC recomputed.
 //
 // What to-v5 changes (the reverse of to-v4; for validation and testing):
@@ -794,6 +798,9 @@ namespace HalcyonTrajectoryLogTool
     // =============================================================================================
     public static class V4Converter
     {
+        /// <summary>Axis order of v4.0 logs, as written by HAL 2.0 - 4.0 MR1 machines; the spec does not state it.</summary>
+        public static readonly int[] V4AxisOrder = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 40, 41, 42, 50 };
+
         public static byte[] Convert(TrajectoryLog log, Options opt, List<string> notes)
         {
             byte[] src = log.Raw;
@@ -803,7 +810,17 @@ namespace HalcyonTrajectoryLogTool
             else if (log.CrcVariant != Crc16.Variants[0])
                 notes.Add("Input CRC matched " + log.CrcVariant.Name + "; the same variant is used for the output.");
 
-            int[] keepIdx = Enumerable.Range(0, log.NumAxes).Where(i => i != timeIdx).ToArray();
+            // Axes in the v4.0 order (time axis left out); any other axes follow in their input order.
+            var keep = new List<int>();
+            foreach (int id in V4AxisOrder)
+            {
+                int i = Array.IndexOf(log.AxisIds, id);
+                if (i >= 0) keep.Add(i);
+            }
+            for (int i = 0; i < log.NumAxes; i++)
+                if (i != timeIdx && !keep.Contains(i)) keep.Add(i);
+            int[] keepIdx = keep.ToArray();
+            bool reordered = !keepIdx.SequenceEqual(Enumerable.Range(0, log.NumAxes).Where(i => i != timeIdx));
             int newAxisScale = opt.AxisScale ?? log.AxisScale;
 
             // Header
@@ -840,21 +857,14 @@ namespace HalcyonTrajectoryLogTool
                              log.NumSubbeamsField * TrajectoryLog.SubbeamBytes);
 
             int dstPos = log.DataOffset;
-            if (timeIdx < 0)
+            for (int s = 0; s < log.NumSnapshots; s++)
             {
-                Buffer.BlockCopy(src, log.DataOffset, dst, dstPos, log.NumSnapshots * snapBytes);
-            }
-            else
-            {
-                int before = log.AxisFloatOffset[timeIdx] * 4;
-                int after = snapBytes - before - timeBytes;
-                for (int s = 0; s < log.NumSnapshots; s++)
+                int sp = log.DataOffset + s * snapBytes;
+                foreach (int i in keepIdx)
                 {
-                    int sp = log.DataOffset + s * snapBytes;
-                    Buffer.BlockCopy(src, sp, dst, dstPos, before);
-                    dstPos += before;
-                    Buffer.BlockCopy(src, sp + before + timeBytes, dst, dstPos, after);
-                    dstPos += after;
+                    int bytes = log.SamplesPerAxis[i] * 2 * 4;
+                    Buffer.BlockCopy(src, sp + log.AxisFloatOffset[i] * 4, dst, dstPos, bytes);
+                    dstPos += bytes;
                 }
             }
 
@@ -866,6 +876,8 @@ namespace HalcyonTrajectoryLogTool
             notes.Add(string.Format(CultureInfo.InvariantCulture,
                 "{0} axes -> {1}, {2} subbeam(s), {3} snapshots, {4:N0} -> {5:N0} bytes",
                 log.NumAxes, keepIdx.Length, log.NumSubbeamsField, log.NumSnapshots, src.Length, dst.Length));
+            if (reordered)
+                notes.Add("Axes reordered to the v4.0 order: " + string.Join(", ", keepIdx.Select(i => TrajectoryLog.AxisName(log.AxisIds[i]))) + ".");
             if (log.AxisScale == 3 && newAxisScale == 3)
                 notes.Add("Axis scale kept at 3 (machine scale, isocentric couch) - valid in v4.0.");
             if (opt.AxisScale.HasValue && opt.AxisScale.Value != log.AxisScale)
