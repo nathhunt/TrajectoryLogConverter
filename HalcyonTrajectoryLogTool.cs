@@ -3,7 +3,7 @@
 // Command-line tool for Halcyon / Ethos trajectory logs (.bin):
 //
 //   to-v4   Convert a version 5.1 log (HAL 5.0) to the version 4.0 layout (HAL 2.0 - 4.0 MR1)
-//           so it can be read by tools that only understand 4.0 (e.g. DoseLab).
+//           so it can be read by tools that only understand 4.0.
 //   to-csv  Export a version 4.0 or 5.1 log to human-readable CSV:
 //             <name>.csv          one row per 20 ms snapshot, expected + actual for every axis
 //
@@ -27,8 +27,8 @@
 //
 // Common options
 //   -o, --output <path>     to-v4 : output file, or folder. Default: "v4.0" subfolder next to
-//                                   the input, ORIGINAL file name kept (DoseLab reads the
-//                                   treatment date from the "_yyyyMMddHHmmss.bin" file name).
+//                                   the input, ORIGINAL file name kept (QA tools may read
+//                                   the treatment date from the "_yyyyMMddHHmmss.bin" file name).
 //                           to-v5 : as to-v4, default "v5.1" subfolder.
 //                           to-csv: output folder. Default: same folder as the input.
 //   --overwrite             Overwrite existing output files.
