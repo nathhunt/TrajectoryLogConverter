@@ -119,6 +119,42 @@
         },
 
         // ------------------------------------------------------------------------------------
+        // Unit tests (tests\HalcyonTrajectoryLogTool.Tests; net8.0, plus net48 on Windows)
+        // ------------------------------------------------------------------------------------
+        {
+            "label": "test",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "test",
+                "${workspaceFolder}/tests/HalcyonTrajectoryLogTool.Tests/HalcyonTrajectoryLogTool.Tests.csproj",
+                "-p:GenerateFullPaths=true",
+                "-consoleLoggerParameters:NoSummary"
+            ],
+            "group": { "kind": "test", "isDefault": true },
+            "presentation": { "reveal": "always" },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            // Unit tests with code coverage; writes coverage.cobertura.xml under tests\TestResults\
+            "label": "test with coverage",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "test",
+                "${workspaceFolder}/tests/HalcyonTrajectoryLogTool.Tests/HalcyonTrajectoryLogTool.Tests.csproj",
+                "--collect:XPlat Code Coverage",
+                "--settings", "${workspaceFolder}/tests/coverage.runsettings",
+                "--results-directory", "${workspaceFolder}/tests/TestResults",
+                "-p:GenerateFullPaths=true",
+                "-consoleLoggerParameters:NoSummary"
+            ],
+            "group": "test",
+            "presentation": { "reveal": "always" },
+            "problemMatcher": "$msCompile"
+        },
+
+        // ------------------------------------------------------------------------------------
         // Run the command-line tool (Debug build) without the debugger.
         // Output paths follow the tool's defaults (e.g. a "v4.0" subfolder next to the input).
         // ------------------------------------------------------------------------------------

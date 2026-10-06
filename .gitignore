@@ -15,3 +15,6 @@ Deploy/
 
 # Stray Python downloads
 *.whl
+
+# Test results / coverage
+TestResults/

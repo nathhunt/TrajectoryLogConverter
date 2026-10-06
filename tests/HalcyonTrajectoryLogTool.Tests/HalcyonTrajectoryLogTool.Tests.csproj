@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Unit tests for the conversion engine (HalcyonTrajectoryLogTool.cs, compiled in as a linked file).
+       net8.0 runs on any OS (dotnet test); on Windows the tests also run on .NET Framework 4.8,
+       the framework the tool and GUI ship on. -->
+  <PropertyGroup>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks Condition=" '$(OS)' == 'Windows_NT' ">net8.0;net48</TargetFrameworks>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <LangVersion>7.3</LangVersion>
+    <RootNamespace>HalcyonTrajectoryLogTool.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- HalcyonTrajectoryLogTool.cs has its own Main; don't generate another one. -->
+    <GenerateProgramFile>false</GenerateProgramFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\HalcyonTrajectoryLogTool.cs" Link="HalcyonTrajectoryLogTool.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+    <PackageReference Include="coverlet.collector" Version="6.0.2" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

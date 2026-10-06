@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Code coverage for the engine. HalcyonTrajectoryLogTool.cs is compiled into the test assembly,
+     which coverlet leaves out by default, hence IncludeTestAssembly.
+     dotnet test tests/HalcyonTrajectoryLogTool.Tests -collect:"XPlat Code Coverage" -settings tests/coverage.runsettings -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <IncludeTestAssembly>true</IncludeTestAssembly>
+          <ExcludeByFile>**/tests/**/*.cs</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
