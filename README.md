@@ -8,6 +8,7 @@
 | `HalcyonTrajectoryLogGui/` | Stand-alone Windows GUI (x64, .NET Framework 4.8) built on the engine. |
 | `EclipseLauncher/LaunchHalcyonTrajectoryLogTool.cs` | Single-file ESAPI plug-in script that starts the GUI from Eclipse. |
 | `scripts/RoundTripTest.ps1` | Round-trip test for the command-line tool (v5.1 -> v4.0 -> v5.1 and back, then compare). |
+| `tests/HalcyonTrajectoryLogTool.Tests/` | Unit tests for the conversion engine (xUnit). |
 | `.vscode/` | VS Code build tasks, launch (debug) configurations and settings. |
 
 ## GUI
@@ -62,15 +63,39 @@ Outputs go to a `roundtrip` folder next to the input:
 powershell -ExecutionPolicy Bypass -File scripts\RoundTripTest.ps1 -Path D:\Logs
 ```
 
+### Unit tests
+
+`tests/HalcyonTrajectoryLogTool.Tests` holds xUnit tests for the conversion engine
+(`HalcyonTrajectoryLogTool.cs`, compiled in as a linked file, like the other two projects). The tests
+build their own synthetic v4.0 and v5.1 logs byte by byte from the specification layout, so no
+patient logs are needed. They cover parsing and validation, CRC variants, `to-v4`, `to-v5`
+(time axis, couch axes, machine info), byte-for-byte round trips, `compare`, CSV export,
+option parsing, and the command-line exit codes.
+
+```
+dotnet test tests/HalcyonTrajectoryLogTool.Tests
+```
+
+or run the **test** task in VS Code (**Terminal > Run Task**), or use **Test > Run All Tests** in
+Visual Studio. The tests target `net8.0`, so they need the .NET 8 SDK or later, and run on any OS;
+on Windows they also run on .NET Framework 4.8. For code coverage:
+
+```
+dotnet test tests/HalcyonTrajectoryLogTool.Tests --collect:"XPlat Code Coverage" --settings tests/coverage.runsettings
+```
+
+The GUI (`HalcyonTrajectoryLogGui.cs`) is Windows Forms and is not unit tested.
+
 The solution contains:
 
 | Project | What it builds |
 |---|---|
 | `HalcyonTrajectoryLogGui` (startup project) | `HalcyonTrajectoryLogGui.exe`, the GUI |
 | `HalcyonTrajectoryLogTool` | `HalcyonTrajectoryLogTool.exe`, the command-line tool |
+| `HalcyonTrajectoryLogTool.Tests` (under *tests*) | Unit tests for the engine |
 
-Both projects compile the shared `HalcyonTrajectoryLogTool.cs` as a linked file, so a fix to the
-converter applies to both. The Eclipse launcher is listed under *Solution Items* for editing. It
+All three projects compile the shared `HalcyonTrajectoryLogTool.cs` as a linked file, so a fix to the
+converter applies to the GUI and the tool, and is tested by the unit tests. The Eclipse launcher is listed under *Solution Items* for editing. It
 is not built, because Eclipse compiles single-file scripts itself.
 
 A Release build also copies the two files to be deployed into one folder at the repository root
