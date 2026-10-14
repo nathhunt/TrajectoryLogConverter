@@ -144,6 +144,15 @@ namespace HalcyonTrajectoryLogTool.Tests
         }
 
         [Fact]
+        public void ToCsvFull()
+        {
+            Assert.True(Parse("to-csv", "in.bin", "--full").Full);
+            Assert.False(Parse("to-csv", "in.bin").Full);
+            Rejects("--full writes every value; it cannot be combined with --no-mlc or --actual-only", "to-csv", "in.bin", "--full", "--no-mlc");
+            Rejects("--full writes every value; it cannot be combined with --no-mlc or --actual-only", "to-csv", "in.bin", "--actual-only", "--full");
+        }
+
+        [Fact]
         public void CompareFlags()
         {
             Options o = Parse("compare", "a", "b", "--ignore-version", "--tolerance", "1e-3", "--max-diffs", "0");
@@ -159,6 +168,7 @@ namespace HalcyonTrajectoryLogTool.Tests
         [InlineData("to-v4", "--add-couch-rotations", "to-v5")]
         [InlineData("to-v4", "--no-mlc", "to-csv")]
         [InlineData("to-v4", "--actual-only", "to-csv")]
+        [InlineData("to-v4", "--full", "to-csv")]
         [InlineData("to-v4", "--ignore-version", "compare")]
         public void FlagForWrongCommand(string cmd, string flag, string allowed)
         {

@@ -74,6 +74,7 @@ namespace HalcyonTrajectoryLogTool.Gui
         public bool TimeCsv;
         public bool NoMlc;
         public bool ActualOnly;
+        public bool FullCsv;
     }
 
     public static class LogFinder
@@ -164,7 +165,7 @@ namespace HalcyonTrajectoryLogTool.Gui
         // Output
         TextBox txtOutput;
         Button btnBrowseOutput;
-        CheckBox chkV4, chkCsv, chkOverwrite, chkIgnoreCrc, chkKeepMachine, chkTimeCsv, chkNoMlc, chkActualOnly;
+        CheckBox chkV4, chkCsv, chkOverwrite, chkIgnoreCrc, chkKeepMachine, chkTimeCsv, chkNoMlc, chkActualOnly, chkFullCsv;
         // Run
         Button btnFind, btnRun, btnCancel, btnOpenOutput;
         ProgressBar progress;
@@ -237,10 +238,12 @@ namespace HalcyonTrajectoryLogTool.Gui
             chkTimeCsv = new CheckBox { Text = "Save removed time axis (_time.csv)", Location = new Point(30, 128), AutoSize = true };
             chkNoMlc = new CheckBox { Text = "Leave out MLC columns", Location = new Point(398, 104), AutoSize = true };
             chkActualOnly = new CheckBox { Text = "Actual values only", Location = new Point(398, 128), AutoSize = true };
+            chkFullCsv = new CheckBox { Text = "Full dump (_full.csv)", Location = new Point(580, 104), AutoSize = true };
+            chkFullCsv.CheckedChanged += (s, e) => UpdateEnabled();
 
             chkOverwrite = new CheckBox { Text = "Overwrite existing output files", Location = new Point(12, 158), AutoSize = true };
             chkIgnoreCrc = new CheckBox { Text = "Process logs whose CRC does not verify", Location = new Point(380, 158), AutoSize = true };
-            grpOut.Controls.AddRange(new Control[] { lblOut, txtOutput, btnBrowseOutput, chkV4, chkCsv, chkKeepMachine, chkTimeCsv, chkNoMlc, chkActualOnly, chkOverwrite, chkIgnoreCrc });
+            grpOut.Controls.AddRange(new Control[] { lblOut, txtOutput, btnBrowseOutput, chkV4, chkCsv, chkKeepMachine, chkTimeCsv, chkNoMlc, chkActualOnly, chkFullCsv, chkOverwrite, chkIgnoreCrc });
 
             // ---- Buttons ----
             int by = grpOut.Bottom + 10;
@@ -304,7 +307,8 @@ namespace HalcyonTrajectoryLogTool.Gui
             chkDateRange.Enabled = idle && folder;
             dtFrom.Enabled = dtTo.Enabled = idle && folder && chkDateRange.Checked;
             chkKeepMachine.Enabled = chkTimeCsv.Enabled = idle && chkV4.Checked;
-            chkNoMlc.Enabled = chkActualOnly.Enabled = idle && chkCsv.Checked;
+            chkFullCsv.Enabled = idle && chkCsv.Checked;
+            chkNoMlc.Enabled = chkActualOnly.Enabled = idle && chkCsv.Checked && !chkFullCsv.Checked;
             btnCancel.Enabled = !idle;
         }
 
@@ -385,7 +389,8 @@ namespace HalcyonTrajectoryLogTool.Gui
                 KeepMachineInfo = chkKeepMachine.Checked,
                 TimeCsv = chkTimeCsv.Checked,
                 NoMlc = chkNoMlc.Checked,
-                ActualOnly = chkActualOnly.Checked
+                ActualOnly = chkActualOnly.Checked,
+                FullCsv = chkFullCsv.Checked
             };
 
             string error = null;
@@ -542,8 +547,9 @@ namespace HalcyonTrajectoryLogTool.Gui
                 IgnoreCrc = s.IgnoreCrc,
                 KeepMachineInfo = command == Command.ToV4 && s.KeepMachineInfo,
                 TimeCsv = command == Command.ToV4 && s.TimeCsv,
-                NoMlc = command == Command.ToCsv && s.NoMlc,
-                ActualOnly = command == Command.ToCsv && s.ActualOnly
+                Full = command == Command.ToCsv && s.FullCsv,
+                NoMlc = command == Command.ToCsv && s.NoMlc && !s.FullCsv,
+                ActualOnly = command == Command.ToCsv && s.ActualOnly && !s.FullCsv
             };
         }
 
