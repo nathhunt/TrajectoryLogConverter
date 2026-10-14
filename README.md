@@ -20,6 +20,13 @@
 * **Output:** choose an export folder and tick **Convert v5.1 to v4.0** and/or **Export CSV**.
   Output files keep the original file name, and subfolder structure is mirrored.
   v4.0 logs are skipped for conversion (they are already v4.0) but can still be exported to CSV.
+  The CSV leaves out axes that hold no value in any snapshot (the jaws, and the couch rotation,
+  pitch and roll when the couch does not record them).
+* **Full dump (_full.csv)** (or `to-csv --full`) writes `<name>_full.csv` instead: the whole file
+  exactly as stored, in file order. It has the header fields with their byte offsets, the subbeams,
+  every axis of every snapshot (the "no value" marker `3.40282347E+38` included) and the stored CRC.
+  Values use 9 significant digits, which round-trips a 32-bit float exactly. Columns are
+  named `AxisName(axis id)[sample]_Exp` / `_Act`.
   Converted logs have the time axis removed and the axes put in the order v4.0 machines write them
   (Coll, Gantry, jaws, couch, MU, BeamHold, ControlPoint, MLC). v5.1 logs use a different order.
 * Each run writes `TrajectoryLogConversion_<date>_<time>.log` to the export folder.

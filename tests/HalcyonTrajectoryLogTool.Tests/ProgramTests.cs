@@ -199,6 +199,25 @@ namespace HalcyonTrajectoryLogTool.Tests
         }
 
         [Fact]
+        public void ToCsv_FullWritesFullCsv()
+        {
+            using (var dir = new TempDir())
+            {
+                string input = dir.Write("Field.bin", LogBuilder.V51(4).Build());
+                List<string> notes = Program.RunToCsv(input, Opt("to-csv", input, "--full"));
+                string csv = dir.File("Field_full.csv");
+                Assert.False(File.Exists(dir.File("Field.csv")));
+                Assert.Equal("OK   Field.bin (v5.1) -> " + csv, notes[0]);
+                Assert.Contains("     Axes with no data (all \"no value\"): Y1, Y2, X1, X2", notes);
+                string[] lines = File.ReadAllLines(csv, Encoding.UTF8);
+                Assert.Equal("TRAJECTORY LOG FULL DUMP", lines[0].TrimStart('\uFEFF'));
+                Assert.Contains("Source file," + Path.GetFullPath(input), lines);
+                Assert.Contains(lines, l => l.StartsWith("Snapshot,Time(43)_Exp,"));
+                Assert.Contains(lines, l => l.StartsWith("4,"));
+            }
+        }
+
+        [Fact]
         public void ToCsv_CrcWarningNoted()
         {
             using (var dir = new TempDir())

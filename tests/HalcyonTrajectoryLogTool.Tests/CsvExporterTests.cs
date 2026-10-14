@@ -201,6 +201,81 @@ namespace HalcyonTrajectoryLogTool.Tests
             }
         }
 
+        static string[] FullLines(LogBuilder b)
+        {
+            string csv = CsvExporter.FullCsv(LogBuilder.Parse(b.Build()), null);
+            Assert.EndsWith("\r\n", csv);
+            return csv.Split(new[] { "\r\n" }, StringSplitOptions.None);
+        }
+
+        static string[] FullSnapshotHeader(string[] lines)
+        {
+            return lines.First(l => l.StartsWith("Snapshot,")).Split(',');
+        }
+
+        [Fact]
+        public void Full_EveryAxisInFileOrder()
+        {
+            string[] h = FullSnapshotHeader(FullLines(LogBuilder.V51()));
+            Assert.Equal(new[] { "Snapshot", "Time(43)_Exp", "Time(43)_Act", "ControlPoint(42)_Exp", "ControlPoint(42)_Act",
+                                 "MU(40)_Exp", "MU(40)_Act" }, h.Take(7));
+            Assert.Contains("Y1(2)_Exp", h);                 // jaws kept although they hold no value
+            Assert.Contains("CouchRtn(9)_Act", h);
+            Assert.Contains("CouchPit(10)_Exp", h);
+            Assert.Contains("CouchRol(11)_Act", h);
+            Assert.Equal("MLC(50)[1]_Exp", h.First(c => c.StartsWith("MLC")));
+            Assert.Equal("MLC(50)[116]_Act", h.Last());
+            Assert.Equal(1 + (LogBuilder.V51Axes.Length - 1 + LogBuilder.MlcSamples) * 2, h.Length);
+        }
+
+        [Fact]
+        public void Full_ValuesExactAsStored()
+        {
+            var b = LogBuilder.V51(3);
+            b.Value = (s, id, k, act) => id == 1 && s == 2 ? (act ? 101.899994f : 0.1f) : LogBuilder.DefaultValue(s, id, k, act);
+            string[] lines = FullLines(b);
+            string[] h = FullSnapshotHeader(lines);
+            int start = Array.IndexOf(lines, string.Join(",", h));
+            string[][] rows = lines.Skip(start + 1).Take(3).Select(l => l.Split(',')).ToArray();
+            Assert.All(rows, r => Assert.Equal(h.Length, r.Length));
+            Assert.Equal(new[] { "1", "2", "3" }, rows.Select(r => r[0]));
+            Assert.Equal("101.899994", rows[2][Array.IndexOf(h, "GantryRtn(1)_Act")]);
+            Assert.Equal("0.100000001", rows[2][Array.IndexOf(h, "GantryRtn(1)_Exp")]);
+            Assert.Equal("3.40282347E+38", rows[0][Array.IndexOf(h, "Y1(2)_Exp")]);
+            Assert.Equal("50000", rows[0][Array.IndexOf(h, "Time(43)_Exp")]);
+            Assert.Equal("", lines[start + 4]);              // blank line ends the snapshot section
+        }
+
+        [Fact]
+        public void Full_HeaderSubbeamsAndCrc()
+        {
+            string[] lines = FullLines(LogBuilder.V51(2));
+            Assert.Equal("TRAJECTORY LOG FULL DUMP", lines[0]);
+            Assert.Contains("0,Signature,VOSTL", lines);
+            Assert.Contains("16,Version,5.1", lines);
+            Assert.Contains("36,Sampling interval (ms),20", lines);
+            Assert.Contains("40,Number of axes,17", lines);
+            Assert.Contains("1,43,1,(Time)", lines);
+            Assert.Contains("17,50,116,(MLC)", lines);
+            Assert.Contains(lines, l => l.EndsWith(",Axis scale,3   (Machine scale (couch in isocentric representation))"));
+            Assert.Contains(lines, l => l.EndsWith(",Number of snapshots,2"));
+            Assert.Contains(",,Patient ID:\tPAT001", lines);
+            Assert.Contains(",,Plan Name:\tPlan1", lines);
+            Assert.Contains(lines, l => l.EndsWith(",Machine serial number,H12345   (hex: 48 31 32 33 34 35)"));
+            Assert.Contains("1,1024,0,100,30,0,Arc 1,\"(32 bytes, all 0x00)\"", lines);
+            Assert.Contains("2,1584,2,50.5,12.25,1,Arc 2,\"(32 bytes, all 0x00)\"", lines);
+            Assert.Contains(lines, l => l.Contains(",CRC (stored),0x"));
+            Assert.Contains(lines, l => l.Contains(",CRC check,\"(verifies, "));
+        }
+
+        [Fact]
+        public void Full_CellsWithCommasAreQuoted()
+        {
+            var b = LogBuilder.V51(1);
+            b.Metadata = "Plan Name:\tA, \"B\"\r\n";
+            Assert.Contains(",,\"Plan Name:\tA, \"\"B\"\"\"", FullLines(b));
+        }
+
         [Theory]
         [InlineData(0, 116, "MLC_Bank1")]
         [InlineData(1, 116, "MLC_Bank2")]
